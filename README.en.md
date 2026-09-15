@@ -22,6 +22,7 @@
 
 | Surface | Status |
 |---|---|
+| DSH versions | Verified on **0.1.1-rc.2 / 0.1.2-rc.1 / 0.1.5-rc.1** (web profile); node reading is normalized across generations (old `session.nodes` / 0.1.2 `legacy.nodes` / desktop 2.0.x `order`+store with `data.content`), so desktop 2.0.x is covered too |
 | Platform | Web GUI only (client plugin; browser-local state; no network, no native code) |
 | Node | `>=20` |
 | Model | Any (no model requests — pure UI behavior) |
