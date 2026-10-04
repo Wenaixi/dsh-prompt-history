@@ -5,6 +5,7 @@
  * declaration.
  */
 
+import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 
 export interface Config {
@@ -21,4 +22,4 @@ export const Config = z.object({
   tocVisible: z.boolean().default(true).volatile(),
 })
 
-export function apply(): void {}
+export function apply(_ctx: Context, _config: Config): void {}
