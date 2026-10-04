@@ -1,9 +1,24 @@
 /**
- * dsh-prompt-history, node half. Pure UI plugin: the empty apply exists so
+ * dsh-prompt-history, node half. The Host schema exposes the preferences to
  * the plugin appears in the host cordis.yml / Loader; the browser half ships
  * via exports["./client"], discovered through the package.json dsh.client
  * declaration.
  */
 
-/** Host plugin body — no host-side behavior for this UI-only plugin. */
+import z from '@deepseek-ai/schemastery'
+
+export interface Config {
+  copyMode: 'toolbar' | 'auto'
+  rightClickPaste: boolean
+  globalHistory: boolean
+  tocVisible: boolean
+}
+
+export const Config = z.object({
+  copyMode: z.union(['toolbar', 'auto']).default('toolbar').volatile(),
+  rightClickPaste: z.boolean().default(true).volatile(),
+  globalHistory: z.boolean().default(false).volatile(),
+  tocVisible: z.boolean().default(true).volatile(),
+})
+
 export function apply(): void {}
