@@ -60,6 +60,17 @@
 - `package.json` 需要 `exports["./locale/*"]` 与 `files["locale/*.json"]`。
 - 宿主读取逻辑：dsh-app-boot readPluginMeta → dictionariesOf 扫 locale 目录里所有 json → resolveText 按 fallbackChain 取值。
 
+## 行 id 与包名相同时，组件列表会重复一行模块名
+
+- 现象：插件详情页「包含的组件」里，标题下面出现两行一模一样的包名（如 dsh-prompt-history）。
+- 根因（宿主行为，非插件 bug）：RowsSection 渲染 `title === row.rowId ? null : <code>{row.rowId}</code>`
+  与 `title === row.moduleName ? null : <code>{row.moduleName}</code>`（app.asar 442245 / 442249）。
+  去重只在 title 与 rowId/moduleName 之一相等时生效。title 来自 locale meta.title（「终端式输入」），
+  与二者都不相等，于是两个 code 节点都渲染。id 与 name 相同的行必然重复；id 与 name 不同的行只出现一次。
+- 因此 bundle patch 的行 id 不要与包名相同。已安装用户改 id 会换掉 Settings 命名空间（命名空间 = entry.options.id），
+  profile 里已写入的 config 行会变成未知 id 而失效，属于破坏性迁移；除非主人明确要求，否则不改 id。
+- 对照：desktop profile 的 `dsh-context`（id 与 name 相同）同样重复，`better-sidebar`（id 与 name 不同）不重复。
+
 ## 实现与验证规范
 
 - 改动前先核对本机 DSH 0.2.0-rc.2 的真实类型声明与实现，不凭记忆猜 API。
