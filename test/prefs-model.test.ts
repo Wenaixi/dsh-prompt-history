@@ -19,6 +19,7 @@ test('migrates valid fields independently and maps copyOnSelect', () => {
     copyMode: 'auto',
     rightClickPaste: false,
     historyEnabled: true,
+    historyGesture: 'both',
     globalHistory: true,
     tocVisible: true,
   } satisfies PluginPrefs)
@@ -26,6 +27,13 @@ test('migrates valid fields independently and maps copyOnSelect', () => {
 
 test('prefers an explicit valid copy mode over the legacy flag', () => {
   assert.equal(parseLegacyPrefs(JSON.stringify({ copyMode: 'toolbar', copyOnSelect: true })).copyMode, 'toolbar')
+})
+
+test('normalizes the history gesture field by field', () => {
+  assert.equal(normalizePrefs({ historyGesture: 'esc' }).historyGesture, 'esc')
+  assert.equal(normalizePrefs({ historyGesture: 'ctrlR' }).historyGesture, 'ctrlR')
+  assert.equal(normalizePrefs({ historyGesture: 'nonsense' }).historyGesture, 'both')
+  assert.equal(parseLegacyPrefs(JSON.stringify({ historyGesture: 'both' })).historyGesture, 'both')
 })
 
 test('keeps the off copy mode instead of normalizing it away', () => {
@@ -43,6 +51,7 @@ test('normalizes a host value field by field without inheriting copyOnSelect', (
     copyMode: 'toolbar',
     rightClickPaste: true,
     historyEnabled: true,
+    historyGesture: 'both',
     globalHistory: false,
     tocVisible: false,
   } satisfies PluginPrefs)
@@ -55,10 +64,11 @@ test('normalizes non-object host values to the defaults', () => {
 })
 
 test('writes every field as one set operation in a fixed order', () => {
-  assert.deepEqual(prefsOps({ copyMode: 'off', rightClickPaste: false, historyEnabled: false, globalHistory: true, tocVisible: false }), [
+  assert.deepEqual(prefsOps({ copyMode: 'off', rightClickPaste: false, historyEnabled: false, historyGesture: 'esc', globalHistory: true, tocVisible: false }), [
     { op: 'set', path: ['copyMode'], value: 'off' },
     { op: 'set', path: ['rightClickPaste'], value: false },
     { op: 'set', path: ['historyEnabled'], value: false },
+    { op: 'set', path: ['historyGesture'], value: 'esc' },
     { op: 'set', path: ['globalHistory'], value: true },
     { op: 'set', path: ['tocVisible'], value: false },
   ])
@@ -70,6 +80,7 @@ test('plans one-time migration only while the host has no user layer', () => {
     { op: 'set', path: ['copyMode'], value: 'auto' },
     { op: 'set', path: ['rightClickPaste'], value: true },
     { op: 'set', path: ['historyEnabled'], value: true },
+    { op: 'set', path: ['historyGesture'], value: 'both' },
     { op: 'set', path: ['globalHistory'], value: false },
     { op: 'set', path: ['tocVisible'], value: false },
   ])
@@ -85,6 +96,7 @@ test('treats an empty user layer as never written', () => {
     { op: 'set', path: ['copyMode'], value: 'toolbar' },
     { op: 'set', path: ['rightClickPaste'], value: true },
     { op: 'set', path: ['historyEnabled'], value: true },
+    { op: 'set', path: ['historyGesture'], value: 'both' },
     { op: 'set', path: ['globalHistory'], value: true },
     { op: 'set', path: ['tocVisible'], value: true },
   ])

@@ -22,6 +22,8 @@ export interface Config {
   rightClickPaste: boolean
   /** 上下键历史是否启用。 */
   historyEnabled: boolean
+  /** 打开历史列表的手势：ctrlR / esc / both。 */
+  historyGesture: 'ctrlR' | 'esc' | 'both'
   /** 上下键历史是否跨会话保留。 */
   globalHistory: boolean
   /** 是否显示聊天目录把手。 */
@@ -31,7 +33,7 @@ export interface Config {
 /**
  * 配置 schema。
  *
- * 四个字段都必须标记 volatile：Settings 只把 volatile 字段投影成表单，
+ * 每个字段都必须标记 volatile：Settings 只把 volatile 字段投影成表单，
  * 普通字段无法从插件详情页写入。默认值必须与 cordis.patch.yml 里写的
  * config 逐字段一致，否则 config-editor 会判定配置被更高层覆盖而拒绝写入。
  */
@@ -39,6 +41,7 @@ export const Config = z.object({
   copyMode: z.union(['off', 'toolbar', 'auto']).default('toolbar').volatile(),
   rightClickPaste: z.boolean().default(true).volatile(),
   historyEnabled: z.boolean().default(true).volatile(),
+  historyGesture: z.union(['ctrlR', 'esc', 'both']).default('both').volatile(),
   globalHistory: z.boolean().default(false).volatile(),
   tocVisible: z.boolean().default(true).volatile(),
 })

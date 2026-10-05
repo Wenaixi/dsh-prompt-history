@@ -13,5 +13,6 @@
         copyMode: toolbar
         rightClickPaste: true
         historyEnabled: true
+        historyGesture: both
         globalHistory: false
         tocVisible: true

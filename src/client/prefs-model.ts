@@ -8,9 +8,12 @@
 /** 复制方式：关闭、工具栏按钮、选中即自动复制。 */
 export type CopyMode = 'off' | 'toolbar' | 'auto'
 
+/** 打开历史列表的手势：仅 Ctrl+R、仅双击 Esc、或两者都要。 */
+export type HistoryGesture = 'ctrlR' | 'esc' | 'both'
+
 /** 一条路径寻址的字段写入操作，形状与宿主 remote.settings 的线格式一致。 */
 export type PrefOp =
-  | { op: 'set'; path: string[]; value: boolean | CopyMode }
+  | { op: 'set'; path: string[]; value: boolean | CopyMode | HistoryGesture }
   | { op: 'unset'; path: string[] }
 
 /** 插件的用户偏好，字段名与宿主 Config schema 一一对应。 */
@@ -19,8 +22,10 @@ export interface PluginPrefs {
   copyMode: CopyMode
   /** 输入框上右键是否直接粘贴剪贴板内容。 */
   rightClickPaste: boolean
-  /** 上下键历史是否启用；关闭后 Up/Down 与 Ctrl+R 全部交还宿主。 */
+  /** 上下键历史是否启用；关闭后 Up/Down 与 Ctrl+R 与双击 Esc 全部交还宿主。 */
   historyEnabled: boolean
+  /** 打开历史列表的手势。 */
+  historyGesture: HistoryGesture
   /** 上下键历史是否跨会话保留。 */
   globalHistory: boolean
   /** 是否显示聊天目录把手。 */
@@ -31,12 +36,13 @@ export const DEFAULT_PREFS: PluginPrefs = {
   copyMode: 'toolbar',
   rightClickPaste: true,
   historyEnabled: true,
+  historyGesture: 'both',
   globalHistory: false,
   tocVisible: true,
 }
 
 /** 字段写入顺序固定，便于宿主合并与回读时逐字段比对。 */
-const FIELDS = ['copyMode', 'rightClickPaste', 'historyEnabled', 'globalHistory', 'tocVisible'] as const
+const FIELDS = ['copyMode', 'rightClickPaste', 'historyEnabled', 'historyGesture', 'globalHistory', 'tocVisible'] as const
 
 /** 旧版浏览器配置里已被 copyMode 取代的字段。 */
 interface LegacyPrefs {
@@ -57,6 +63,11 @@ function boolOf(value: unknown, fallback: boolean): boolean {
   return typeof value === 'boolean' ? value : fallback
 }
 
+function historyGestureOf(value: unknown): HistoryGesture {
+  if (value === 'ctrlR' || value === 'esc' || value === 'both') return value
+  return DEFAULT_PREFS.historyGesture
+}
+
 /**
  * 逐字段规范化：合法值采用，坏字段单独回退默认，不因单个坏字段放弃整份数据。
  */
@@ -66,6 +77,7 @@ export function normalizePrefs(raw: unknown): PluginPrefs {
     copyMode: copyModeOf(raw.copyMode),
     rightClickPaste: boolOf(raw.rightClickPaste, DEFAULT_PREFS.rightClickPaste),
     historyEnabled: boolOf(raw.historyEnabled, DEFAULT_PREFS.historyEnabled),
+    historyGesture: historyGestureOf(raw.historyGesture),
     globalHistory: boolOf(raw.globalHistory, DEFAULT_PREFS.globalHistory),
     tocVisible: boolOf(raw.tocVisible, DEFAULT_PREFS.tocVisible),
   }
@@ -82,6 +94,7 @@ export function parseLegacyPrefs(raw: string | null | undefined): PluginPrefs {
       copyMode: copyModeOf(parsed.copyMode, legacy.copyOnSelect),
       rightClickPaste: boolOf(parsed.rightClickPaste, DEFAULT_PREFS.rightClickPaste),
       historyEnabled: boolOf(parsed.historyEnabled, DEFAULT_PREFS.historyEnabled),
+      historyGesture: historyGestureOf(parsed.historyGesture),
       globalHistory: boolOf(parsed.globalHistory, DEFAULT_PREFS.globalHistory),
       tocVisible: boolOf(parsed.tocVisible, DEFAULT_PREFS.tocVisible),
     }
@@ -113,6 +126,6 @@ export function planLegacyMigration(user: unknown, raw: string | null | undefine
   let parsed: unknown
   try { parsed = JSON.parse(raw) } catch { return undefined }
   if (!isRecord(parsed)) return undefined
-  // historyEnabled 在旧载荷里不存在，parseLegacyPrefs 会给它默认值 true。
+  // historyEnabled 与 historyGesture 在旧载荷里不存在，parseLegacyPrefs 会给它们默认值。
   return prefsOps(parseLegacyPrefs(raw))
 }
