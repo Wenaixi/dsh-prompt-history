@@ -3,7 +3,7 @@
 ## 项目定位
 
 - 包名：dsh-prompt-history。
-- 功能：为 DSH 的对话输入框提供终端式交互：上下键提问历史（前缀搜索、Ctrl+R 反向搜索）、选中文本后的复制或引用、右键粘贴、聊天目录。
+- 功能：为 DSH 的对话输入框提供终端式交互：上下键提问历史（前缀搜索、Ctrl+R 反向搜索）、选中文本后的复制或引用、右键粘贴。
 - 插件形态：Host 半侧只声明配置 schema，浏览器半侧交付全部交互与配置卡。
 - 当前主分支：main；只做本地提交，不自动 push。
 
@@ -18,7 +18,7 @@
 
 ## 硬约束：cordis.patch.yml 的 config
 
-- 六个字段必须在 patch 里写全，且与 `src/index.ts` 的 schema 默认值逐字段一致。
+- 五个字段必须在 patch 里写全，且与 `src/index.ts` 的 schema 默认值逐字段一致。
 - 原因：config-editor 写入前把「组合后的条目配置」与「用户提交的新值」做深比较，不一致即判定被更高层覆盖并返回 `settings/rejected`。
 - 少写字段同样被拒：用户第一次改动的正是缺失那项，组合结果与提交值必然不同。实测「不写 config」与「只写 insert 行」两种形态都写入失败。
 
@@ -31,7 +31,6 @@
 | historyEnabled | bool | true | 关闭后 ↑/↓、Ctrl+R 与双击 Esc 全部交还宿主 |
 | historyGesture | ctrlR / esc / both | both | 打开历史列表的手势 |
 | globalHistory | bool | false | 上下键历史跨会话保留，上限 200 条 |
-| tocVisible | bool | true | 聊天目录把手 |
 
 - 全部字段标记 `volatile()`：Settings 只把 volatile 字段投影成表单。
 - 旧 `copyOnSelect` 仍兼容：true → auto，false → toolbar；`copyMode=off` 是新增合法值，不再被规范化掉。
@@ -98,7 +97,7 @@
 - 还原源码可读位置（Rito-w/ClaudeCode）：src/history.ts（MAX_HISTORY_ITEMS = 100）、src/components/MessageSelector.tsx（MAX_VISIBLE_MESSAGES = 7）、src/keybindings/defaultBindings.ts、src/keybindings/KeybindingProviderSetup.tsx（CHORD_TIMEOUT_MS = 1000）。
 - 双击手势的时间窗参考：Claude Code 800 ms（第一次透传、第二次消费）、pi 扩展 500 ms（第三方类比）、Codex 无时间窗。
 - fzf 的 Ctrl-R 调历史、Ctrl-T 调文件，是两个键对应两个数据集；再按 Ctrl-R 只切换排序方式，不是切全量列表。
-- 浏览器冲突：中文输入法组字中的 Esc 必须让给 IME（检查 isComposing / keyCode 229）；Esc 已有三个消费者（复制工具栏、会话目录、反向搜索放弃），新增浮层必须做优先级仲裁。
+- 浏览器冲突：中文输入法组字中的 Esc 必须让给 IME（检查 isComposing / keyCode 229）；Esc 已有两个消费者（复制工具栏、反向搜索放弃），新增浮层必须做优先级仲裁。
 - 宿主 0.2.0-rc.2 的 Menu **不能用于历史列表**：它的方向键行走先把焦点搬进列表（`lib/index.js:4096-4112` 调 `buttons[next].focus()`，且要求 `anchored`），与「焦点留输入框 + 打字过滤」互斥。因此浮层手写，沿用 `feedback.ts` 的 fixed + body portal 模式。
 - Claude Code 双击 Esc 的真实常数为 `DOUBLE_PRESS_TIMEOUT_MS = 800`（`src/hooks/useDoublePress.ts`）；pi 的 500 ms 是第三方类比，Codex 干脆没有时间窗（issue 26348）。
 
@@ -119,3 +118,7 @@
 - 双击 Esc：输入框为空时 800 ms 内连按两次 Esc 打开同一个列表；第一次 Esc 照常透传给宿主（能关掉工具栏等），任何其他键取消这次待定。可在设置里关掉或改成只用 Ctrl+R。
 - 右键：输入框内直接粘贴，不弹浏览器菜单。
 - 选中文本：按 copyMode 决定什么都不做、弹工具栏（复制 / 引用为 > 引用块）、或立即复制。
+
+## 决策记录
+
+- 2026-10-05 移除会话目录（Chat TOC）：删除 `ChatToc.tsx` 与 `sessionCtx.ts`（其自动翻页拉取全部历史的逻辑随目录消失），`tocVisible` 配置字段、设置项、样式、文案、README 段落一并删除。↑/↓ 召回仍只覆盖当前已加载窗口。已装用户若保留旧 patch 的 `tocVisible` 行，设置写入会被宿主以未知键拒绝，升级时需同步删掉该行。
