@@ -1,7 +1,6 @@
 node_modules/
 lib/
 *.tsbuildinfo
-pnpm-lock.yaml
 CLAUDE.md
 .refactor-plan.md
 .superpowers/
