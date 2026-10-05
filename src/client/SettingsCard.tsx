@@ -264,15 +264,6 @@ function SettingsCard({ form, t }: {
           onChange={(next) => writeBool('rightClickPaste', next)}
         />
       </Group>
-      <Group title={t('settings.group.toc')}>
-        <ToggleRow
-          title={t('settings.row.toc')}
-          hint={t('settings.row.toc.hint')}
-          checked={value.tocVisible}
-          disabled={locked}
-          onChange={(next) => writeBool('tocVisible', next)}
-        />
-      </Group>
       <div className="dsh-ph-foot">
         <span className="dsh-ph-footStatus" role="status">
           {failed ? t('settings.saveFailed') : snapshot.writable ? '' : t('settings.readOnly')}

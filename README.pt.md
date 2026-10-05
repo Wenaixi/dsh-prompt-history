@@ -39,7 +39,6 @@
    - **Auto** (estilo terminal): copia a seleção direto para a área de transferência do sistema ao selecionar.
 5. **Botão direito cola diretamente** — um clique com o botão direito no compositor cola a área de transferência — sem menu de contexto, como num terminal Linux. A colagem usa o mesmo pipeline do Ctrl+V (imagens e chips de referência se comportam igual), com fallback da Clipboard API quando o caminho execCommand está bloqueado.
 6. **Histórico entre sessões** (alternância em Configurações, desligado por padrão) — mantém o histórico de ↑/↓ entre sessões, armazenado em localStorage do navegador (limite 200), sobrevive a recarregamentos e trocas de sessão.
-7. **TOC do chat (índice da conversa)** — quando a conversa fica longa, uma alça sutil, semitransparente e arrastável na borda esquerda do chat (acende no hover) expande um índice de cada mensagem de usuário em ordem — clique em qualquer item para saltar para aquele ponto e role por todas as entradas quando a lista ficar longa; clique fora ou pressione Esc para fechar. Pode ser desativado nas Configurações.
 
 Comportamento puro de UI: sem eventos de sessão, sem mudanças no loop do agente, sem requisições ao modelo. O texto recuperado ou citado só entra no rascunho comum do compositor — chega ao modelo apenas se *você* pressionar Enter.
 
@@ -66,7 +65,6 @@ Abra **Configurações → `>_ Terminal Input`** (armazenado em localStorage do 
 |---|---|---|
 | Modo de cópia (ao selecionar) | `Barra de ferramentas` | `Barra` (recomendado; grava na área de transferência só ao clicar) / `Copiar automaticamente ao selecionar` (estilo terminal) |
 | Histórico entre sessões | Desligado | O histórico de ↑/↓ persiste entre sessões em localStorage (limite 200) |
-| TOC do chat | Ligado | Mostrar a alça arrastável na borda esquerda do chat; pode ser desativado |
 | Colar com botão direito | Ligado | Desligado restaura o menu de contexto nativo do navegador |
 
 O histórico de ↑/↓ está sempre ligado, independentemente dessas alternâncias.
@@ -75,13 +73,11 @@ O histórico de ↑/↓ está sempre ligado, independentemente dessas alternânc
 
 - **O histórico vem do registro de mensagens da própria sessão**: lê os nós de usuário (`user` / `steering`) do snapshot da conversa e os anexa conforme chegam — estritamente consistente com a transcrição, persistido com a sessão, sobrevive a recarregamentos de página e não precisa de configuração nem armazenamento extra.
 - **Duplicados consecutivos são colapsados**; o estado de navegação é redefinido ao trocar de sessão.
-- **Interface internacionalizada**: cada texto (configurações, barra de ferramentas, avisos, TOC, overlay de busca) segue o idioma do app DSH (中文 / English).
 - O bundle do cliente pesa ~12 KB compactado e depende apenas dos pacotes peer oficiais `@deepseek-ai/*`.
 
 ## Limitações conhecidas
 
 - **Ctrl+R**: com o compositor focado, Ctrl+R é busca reversa — ele não recarrega mais a página (clique fora do campo primeiro para recarregar).
-- O diretório da conversa puxa automaticamente o histórico mais antigo do host (página por página até completar), então pode localizar qualquer posição anterior; a recuperação com ↑/↓ ainda cobre apenas a janela carregada.
 - Apenas texto simples: mensagens só com imagens ou chips não são recuperadas; os rascunhos recuperados são texto simples.
 
 ## Desenvolvimento

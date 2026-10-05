@@ -39,7 +39,6 @@
    - **Auto** (estilo terminal): copia la selección directamente al portapapeles del sistema al seleccionar.
 5. **Clic derecho pega directamente** — un clic derecho sobre el compositor pega el portapapeles — sin menú contextual, como en una terminal Linux. El pegado usa la misma canalización que Ctrl+V (las imágenes y las chips de referencia se comportan igual), con respaldo de Clipboard API cuando la ruta execCommand está bloqueada.
 6. **Historial entre sesiones** (interruptor en Ajustes, apagado por defecto) — mantiene el historial de ↑/↓ entre sesiones, almacenado en localStorage (límite 200), sobrevive a recargas y cambios de sesión.
-7. **TOC del chat (índice de la conversación)** — cuando la conversación se hace larga, una pequeña manija semitransparente y arrastrable en el borde izquierdo del chat (se ilumina al pasar el cursor) despliega un índice de cada mensaje de usuario en orden — haz clic en cualquier entrada para saltar a ese punto y desplázate por todas las entradas cuando la lista es larga; haz clic fuera o pulsa Esc para cerrar. Se puede desactivar en Ajustes.
 
 Comportamiento de UI puro: sin eventos de sesión, sin cambios en el bucle del agente, sin peticiones al modelo. El texto recuperado o citado solo entra en el borrador normal del compositor — llega al modelo solo si *tú* pulsas Enter.
 
@@ -66,7 +65,6 @@ Abre **Ajustes → `>_ Terminal Input`** (almacenado en localStorage del navegad
 |---|---|---|
 | Modo de copia (al seleccionar) | `Barra de herramientas` | `Barra` (recomendado; escribe en el portapapeles solo al hacer clic) / `Copiar automático al seleccionar` (estilo terminal) |
 | Historial entre sesiones | Apagado | El historial de ↑/↓ persiste entre sesiones en localStorage (límite 200) |
-| TOC del chat | Activado | Mostrar la manija arrastrable en el borde izquierdo del chat; se puede desactivar |
 | Pegar con clic derecho | Activado | Apagado restaura el menú contextual nativo del navegador |
 
 El historial de ↑/↓ siempre está activo, independientemente de estos interruptores.
@@ -75,13 +73,11 @@ El historial de ↑/↓ siempre está activo, independientemente de estos interr
 
 - **El historial proviene del registro de mensajes de la propia sesión**: lee los nodos de usuario (`user` / `steering`) de la instantánea de la conversación y los añade según llegan — estrictamente consistente con la transcripción, persistido con la sesión, sobrevive a recargas de página y no necesita configuración ni almacenamiento extra.
 - **Los duplicados consecutivos se colapsan**; el estado de navegación se reinicia al cambiar de sesión.
-- **Interfaz internacionalizada**: cada texto (ajustes, barra de herramientas, avisos, TOC, superposición de búsqueda) sigue el idioma de la app de DSH (中文 / English).
 - El bundle de cliente pesa ~12 KB comprimido y depende solo de los paquetes peer oficiales `@deepseek-ai/*`.
 
 ## Limitaciones conocidas
 
 - **Ctrl+R**: con el compositor enfocado, Ctrl+R es búsqueda inversa — ya no recarga la página (haz clic fuera del campo primero para recargar).
-- El directorio de la conversación carga automáticamente el historial más antiguo del host (página a página hasta completarlo), así que puede localizar cualquier posición anterior; la recuperación con ↑/↓ sigue cubriendo solo la ventana cargada.
 - Solo texto plano: los mensajes con solo imágenes o chips no se recuperan; los borradores recuperados son texto plano.
 
 ## Desarrollo

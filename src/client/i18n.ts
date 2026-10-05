@@ -1,6 +1,6 @@
 /**
  * Tiny module-level translator for non-React code (feedback pills, the
- * selection toolbar, the search overlay, the TOC grip). apply() installs the
+ * selection toolbar, the search overlay). apply() installs the
  * locale-bound translate function; T() reads the active locale at call time,
  * falling back to the key itself before apply runs or if a key is missing.
  */

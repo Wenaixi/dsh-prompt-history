@@ -14,14 +14,12 @@ test('migrates valid fields independently and maps copyOnSelect', () => {
     copyOnSelect: true,
     rightClickPaste: false,
     globalHistory: true,
-    tocVisible: 'invalid',
   })), {
     copyMode: 'auto',
     rightClickPaste: false,
     historyEnabled: true,
     historyGesture: 'both',
     globalHistory: true,
-    tocVisible: true,
   } satisfies PluginPrefs)
 })
 
@@ -47,13 +45,12 @@ test('falls back safely for malformed JSON and invalid values', () => {
 })
 
 test('normalizes a host value field by field without inheriting copyOnSelect', () => {
-  assert.deepEqual(normalizePrefs({ copyOnSelect: true, tocVisible: false }), {
+  assert.deepEqual(normalizePrefs({ copyOnSelect: true }), {
     copyMode: 'toolbar',
     rightClickPaste: true,
     historyEnabled: true,
     historyGesture: 'both',
     globalHistory: false,
-    tocVisible: false,
   } satisfies PluginPrefs)
 })
 
@@ -64,28 +61,26 @@ test('normalizes non-object host values to the defaults', () => {
 })
 
 test('writes every field as one set operation in a fixed order', () => {
-  assert.deepEqual(prefsOps({ copyMode: 'off', rightClickPaste: false, historyEnabled: false, historyGesture: 'esc', globalHistory: true, tocVisible: false }), [
+  assert.deepEqual(prefsOps({ copyMode: 'off', rightClickPaste: false, historyEnabled: false, historyGesture: 'esc', globalHistory: true }), [
     { op: 'set', path: ['copyMode'], value: 'off' },
     { op: 'set', path: ['rightClickPaste'], value: false },
     { op: 'set', path: ['historyEnabled'], value: false },
     { op: 'set', path: ['historyGesture'], value: 'esc' },
     { op: 'set', path: ['globalHistory'], value: true },
-    { op: 'set', path: ['tocVisible'], value: false },
   ])
 })
 
 test('plans one-time migration only while the host has no user layer', () => {
-  const raw = JSON.stringify({ copyOnSelect: true, tocVisible: false })
+  const raw = JSON.stringify({ copyOnSelect: true })
   assert.deepEqual(planLegacyMigration(undefined, raw), [
     { op: 'set', path: ['copyMode'], value: 'auto' },
     { op: 'set', path: ['rightClickPaste'], value: true },
     { op: 'set', path: ['historyEnabled'], value: true },
     { op: 'set', path: ['historyGesture'], value: 'both' },
     { op: 'set', path: ['globalHistory'], value: false },
-    { op: 'set', path: ['tocVisible'], value: false },
   ])
   // 已有用户层说明用户或迁移已写过，旧的 localStorage 不得再覆盖。
-  assert.equal(planLegacyMigration({ tocVisible: false }, raw), undefined)
+  assert.equal(planLegacyMigration({ globalHistory: false }, raw), undefined)
   assert.equal(planLegacyMigration(undefined, null), undefined)
 })
 
@@ -98,7 +93,6 @@ test('treats an empty user layer as never written', () => {
     { op: 'set', path: ['historyEnabled'], value: true },
     { op: 'set', path: ['historyGesture'], value: 'both' },
     { op: 'set', path: ['globalHistory'], value: true },
-    { op: 'set', path: ['tocVisible'], value: true },
   ])
 })
 

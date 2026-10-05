@@ -40,7 +40,6 @@
    - **Auto** (terminal-style): copies the selection straight to the system clipboard on select.
 5. **Right-click pastes directly** — a right-click on the composer pastes the clipboard — no context menu, like a Linux terminal. Paste runs the same pipeline as Ctrl+V (images and reference chips behave identically), with a Clipboard API fallback when the execCommand path is blocked.
 6. **Cross-session history** (Settings toggle, default off) — keeps Up/Down history across sessions, stored in browser localStorage (cap 200), survives reloads and session switches.
-7. **Chat TOC (conversation directory)** — when the conversation gets long, a subtle semi-transparent, draggable grip on the chat's left edge (brightens on hover) expands a directory of every user message in order — click any entry to jump to that spot, and scroll through all entries when the list gets long; click outside or press Esc to close. Can be toggled off in Settings.
 
 Pure UI behavior: no session events, no agent-loop changes, no model requests. Recalled or quoted text only enters the ordinary composer draft — it reaches the model only if *you* press Enter.
 
@@ -67,7 +66,6 @@ Open **Settings → `>_ Terminal Input`** (stored in browser localStorage, effec
 |---|---|---|
 | Copy mode (on selection) | `Toolbar copy` | `Toolbar` (recommended; writes the clipboard only on click) / `Auto copy on select` (terminal-style) |
 | Cross-session history | Off | Up/Down history persists across sessions in browser localStorage (cap 200) |
-| Chat TOC | On | Show the draggable grip on the chat left edge; can be turned off |
 | Right-click paste | On | Off restores the browser's native context menu |
 
 Up/Down history is always on, independent of these switches.
@@ -76,13 +74,11 @@ Up/Down history is always on, independent of these switches.
 
 - **History comes from the session's own message log**: reads the conversation snapshot's user nodes (`user` / `steering`) and appends as they land — strictly consistent with the transcript, persisted with the session, survives page reloads, and needs no configuration or extra storage.
 - **Consecutive duplicates collapse**; browse state resets on session switch.
-- **Internationalized UI**: every string (settings, toolbar, feedback pills, TOC, search overlay) follows the DSH app language (中文 / English).
 - The client bundle is ~12 KB gzipped and depends only on the official `@deepseek-ai/*` peer packages.
 
 ## Known limitations
 
 - **Ctrl+R**: while the composer is focused, Ctrl+R is reverse-search — it no longer reloads the page (click outside the input first to reload).
-- The conversation directory pulls older host history automatically (page by page until complete), so it can locate every earlier position; Up/Down recall still covers the currently loaded window only.
 - Plain text only: image-only or chip-bearing messages are not recalled; recalled drafts are plain text.
 
 ## Development

@@ -26,8 +26,6 @@ export interface Config {
   historyGesture: 'ctrlR' | 'esc' | 'both'
   /** 上下键历史是否跨会话保留。 */
   globalHistory: boolean
-  /** 是否显示聊天目录把手。 */
-  tocVisible: boolean
 }
 
 /**
@@ -43,7 +41,6 @@ export const Config = z.object({
   historyEnabled: z.boolean().default(true).volatile(),
   historyGesture: z.union(['ctrlR', 'esc', 'both']).default('both').volatile(),
   globalHistory: z.boolean().default(false).volatile(),
-  tocVisible: z.boolean().default(true).volatile(),
 })
 
 export function apply(ctx: Context, _config: Config): void {

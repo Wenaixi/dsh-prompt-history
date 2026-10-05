@@ -28,8 +28,6 @@ export interface PluginPrefs {
   historyGesture: HistoryGesture
   /** 上下键历史是否跨会话保留。 */
   globalHistory: boolean
-  /** 是否显示聊天目录把手。 */
-  tocVisible: boolean
 }
 
 export const DEFAULT_PREFS: PluginPrefs = {
@@ -38,11 +36,10 @@ export const DEFAULT_PREFS: PluginPrefs = {
   historyEnabled: true,
   historyGesture: 'both',
   globalHistory: false,
-  tocVisible: true,
 }
 
 /** 字段写入顺序固定，便于宿主合并与回读时逐字段比对。 */
-const FIELDS = ['copyMode', 'rightClickPaste', 'historyEnabled', 'historyGesture', 'globalHistory', 'tocVisible'] as const
+const FIELDS = ['copyMode', 'rightClickPaste', 'historyEnabled', 'historyGesture', 'globalHistory'] as const
 
 /** 旧版浏览器配置里已被 copyMode 取代的字段。 */
 interface LegacyPrefs {
@@ -79,7 +76,6 @@ export function normalizePrefs(raw: unknown): PluginPrefs {
     historyEnabled: boolOf(raw.historyEnabled, DEFAULT_PREFS.historyEnabled),
     historyGesture: historyGestureOf(raw.historyGesture),
     globalHistory: boolOf(raw.globalHistory, DEFAULT_PREFS.globalHistory),
-    tocVisible: boolOf(raw.tocVisible, DEFAULT_PREFS.tocVisible),
   }
 }
 
@@ -96,7 +92,6 @@ export function parseLegacyPrefs(raw: string | null | undefined): PluginPrefs {
       historyEnabled: boolOf(parsed.historyEnabled, DEFAULT_PREFS.historyEnabled),
       historyGesture: historyGestureOf(parsed.historyGesture),
       globalHistory: boolOf(parsed.globalHistory, DEFAULT_PREFS.globalHistory),
-      tocVisible: boolOf(parsed.tocVisible, DEFAULT_PREFS.tocVisible),
     }
   } catch {
     return { ...DEFAULT_PREFS }
