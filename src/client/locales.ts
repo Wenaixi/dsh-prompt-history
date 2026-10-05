@@ -28,6 +28,14 @@ const zh = {
   'settings.row.paste.hint': '在输入框上右键即粘贴剪贴板内容，不弹出浏览器右键菜单。',
   'settings.row.global': '跨会话记忆',
   'settings.row.global.hint': '上下键历史在会话之间保留，最多记住 200 条。',
+  'settings.row.gesture': '打开历史列表',
+  'settings.row.gesture.hint': '决定用什么键调出全部历史列表。列表里打字过滤、↑↓ 选择、Enter 回填、Esc 取消。',
+  'historyGesture.ctrlR': '只用 Ctrl+R',
+  'historyGesture.ctrlR.hint': '终端里的老习惯；双击 Esc 完全不响应。',
+  'historyGesture.esc': '只用双击 Esc',
+  'historyGesture.esc.hint': '在输入框为空时连按两次 Esc（800 毫秒内）；Ctrl+R 不响应。',
+  'historyGesture.both': '两者都要',
+  'historyGesture.both.hint': 'Ctrl+R 与双击 Esc 都打开同一个列表。用 vi 模式的人若被误触困扰，可改成只留 Ctrl+R。',
   'settings.row.toc': '会话目录',
   'settings.row.toc.hint': '在对话左侧显示可拖动的目录把手，点击条目跳到对应提问。',
   'settings.alwaysOn': '始终开启',
@@ -43,6 +51,8 @@ const zh = {
   'toc.aria': '会话目录（可拖动）',
   'toc.resize': '拖动右下角调整面板大小',
   'search.noMatch': '无匹配',
+  'history.hint': '↑↓ 选择 · Enter 回填 · Esc 取消',
+  'history.noMatch': '没有匹配的历史',
 } as const
 
 /** en 字典：键集合必须与 zh 完全一致。 */
@@ -64,6 +74,14 @@ const en: Record<keyof typeof zh, string> = {
   'settings.row.paste.hint': 'Right-clicking the input box pastes the clipboard directly, without the browser context menu.',
   'settings.row.global': 'Cross-session memory',
   'settings.row.global.hint': 'The Up/Down history survives a session switch, up to 200 entries.',
+  'settings.row.gesture': 'Open history list',
+  'settings.row.gesture.hint': 'Which key opens the full history list. In the list you can type to filter, move with Up/Down, fill with Enter, and cancel with Esc.',
+  'historyGesture.ctrlR': 'Ctrl+R only',
+  'historyGesture.ctrlR.hint': 'The familiar terminal habit; double Escape does nothing.',
+  'historyGesture.esc': 'Double Escape only',
+  'historyGesture.esc.hint': 'Press Esc twice within 800 ms while the input box is empty; Ctrl+R does nothing.',
+  'historyGesture.both': 'Both',
+  'historyGesture.both.hint': 'Ctrl+R and double Escape open the same list. Switch to Ctrl+R only if double Escape gets in your way.',
   'settings.row.toc': 'Conversation directory',
   'settings.row.toc.hint': 'Show a draggable grip on the left edge of the chat; click an entry to jump to that prompt.',
   'settings.alwaysOn': 'Always on',
@@ -79,6 +97,8 @@ const en: Record<keyof typeof zh, string> = {
   'toc.aria': 'Conversation TOC (draggable)',
   'toc.resize': 'Drag the corner to resize',
   'search.noMatch': 'no match',
+  'history.hint': 'Up/Down to move · Enter to fill · Esc to cancel',
+  'history.noMatch': 'No matching prompt',
 }
 
 /** 本插件全部文案键的联合类型。 */

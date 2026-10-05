@@ -10,7 +10,7 @@ import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots
 import { Button, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   DEFAULT_PREFS, normalizePrefs, planLegacyMigration, prefsOps,
-  type CopyMode, type PluginPrefs,
+  type CopyMode, type HistoryGesture, type PluginPrefs,
 } from './prefs-model.ts'
 import type { PromptHistoryKey } from './locales.ts'
 
@@ -28,6 +28,13 @@ const COPY_MODES: readonly { value: CopyMode; label: PromptHistoryKey; hint: Pro
   { value: 'off', label: 'copyMode.off', hint: 'copyMode.off.hint' },
   { value: 'toolbar', label: 'copyMode.toolbar', hint: 'copyMode.toolbar.hint' },
   { value: 'auto', label: 'copyMode.auto', hint: 'copyMode.auto.hint' },
+]
+
+/** 打开历史列表的手势三选，按「最小惊讶 → 最大宽容」排列。 */
+const HISTORY_GESTURES: readonly { value: HistoryGesture; label: PromptHistoryKey; hint: PromptHistoryKey }[] = [
+  { value: 'ctrlR', label: 'historyGesture.ctrlR', hint: 'historyGesture.ctrlR.hint' },
+  { value: 'esc', label: 'historyGesture.esc', hint: 'historyGesture.esc.hint' },
+  { value: 'both', label: 'historyGesture.both', hint: 'historyGesture.both.hint' },
 ]
 
 function readLegacyRaw(): string | null {
@@ -189,6 +196,12 @@ function SettingsCard({ form, t }: {
     void form.set('copyMode', next).then(settle).catch(() => { setBusy(false); setFailed(true) })
   }, [form, settle])
 
+  const writeGesture = useCallback((next: HistoryGesture) => {
+    setBusy(true)
+    setFailed(false)
+    void form.set('historyGesture', next).then(settle).catch(() => { setBusy(false); setFailed(true) })
+  }, [form, settle])
+
   const reset = useCallback(() => {
     if (!globalThis.confirm(t('settings.confirmReset'))) return
     setBusy(true)
@@ -201,6 +214,11 @@ function SettingsCard({ form, t }: {
     value: mode.value,
     label: t(mode.label),
     hint: t(mode.hint),
+  }))
+  const gestureOptions = HISTORY_GESTURES.map((gesture) => ({
+    value: gesture.value,
+    label: t(gesture.label),
+    hint: t(gesture.hint),
   }))
 
   return (
@@ -219,6 +237,14 @@ function SettingsCard({ form, t }: {
           checked={value.globalHistory}
           disabled={locked}
           onChange={(next) => writeBool('globalHistory', next)}
+        />
+        <ChoiceRow
+          title={t('settings.row.gesture')}
+          hint={t('settings.row.gesture.hint')}
+          value={value.historyGesture}
+          options={gestureOptions}
+          disabled={locked}
+          onChange={(next) => writeGesture(next as HistoryGesture)}
         />
       </Group>
       <Group title={t('settings.group.copy')}>

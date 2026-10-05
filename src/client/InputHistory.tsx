@@ -43,8 +43,9 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { ConversationNode } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { getPrefs, subscribePrefs } from './prefs.ts'
 import {
-  flashCopied, hideSearchOverlay, hideSelectionToolbar, showSearchOverlay, showSelectionToolbar,
+  flashCopied, hideHistoryPanel, hideSelectionToolbar, showHistoryPanel, showSelectionToolbar,
 } from './feedback.ts'
+import { isDoubleEscape, matchesOf, nextIndex } from './history-model.ts'
 import { T } from './i18n.ts'
 import { pullOlderPage } from './sessionCtx.ts'
 import { promptMessage, type PromptMessage } from './nodes.ts'
@@ -69,14 +70,12 @@ interface BrowseState {
   readonly prefix?: string
 }
 
-/** One active Ctrl+R reverse-search session (null = not searching). */
-interface SearchState {
-  /** The draft before the search started (restored on Escape). */
-  readonly preSearch: string
-  /** The incremental query typed so far. */
+/** One open history list session (null = the panel is closed). */
+interface PickerState {
+  /** The incremental filter typed so far. */
   readonly query: string
-  /** History index of the currently displayed match (-1 = no match). */
-  readonly matchIndex: number
+  /** Highlight position within the match array; -1 = no match. */
+  readonly highlight: number
 }
 
 /** Not-browsing state; also the reset target after edits and session switches. */
@@ -176,7 +175,9 @@ export function InputHistory(props: InputHistoryProps) {
   /** User-node seqs already folded into historyRef (append-once dedup). */
   const seenRef = useRef<Set<number>>(new Set())
   const browseRef = useRef<BrowseState>(RESET_BROWSE)
-  const searchRef = useRef<SearchState | null>(null)
+  const pickerRef = useRef<PickerState | null>(null)
+  /** Monotonic timestamp of the last unpaired Escape; 0 = none. */
+  const lastEscapeRef = useRef(0)
   const liveRef = useRef({ draft, phase, removed, inputActions })
   liveRef.current = { draft, phase, removed, inputActions }
 
@@ -218,8 +219,9 @@ export function InputHistory(props: InputHistoryProps) {
     if (!prefs.historyEnabled || !prefs.globalHistory) historyRef.current = []
     seenRef.current = new Set()
     browseRef.current = RESET_BROWSE
-    searchRef.current = null
-    hideSearchOverlay()
+    pickerRef.current = null
+    hideHistoryPanel()
+    lastEscapeRef.current = 0
   }, [sessionId])
 
   // Fold newly arrived user messages into the history (window slides; the
@@ -247,9 +249,95 @@ export function InputHistory(props: InputHistoryProps) {
     if (browse.index !== -1 && draft !== browse.lastSet) browseRef.current = RESET_BROWSE
   }, [draft])
 
+  // ---- 历史列表面板 ----
+  //
+  // 面板状态只有 query 与 highlight 两个字段，刻意不复用 browseRef：浏览历史的
+  // effect 会在草稿变化时把 browseRef 重置，若高亮搭在上面会被自己抹掉。
+  const activeQuery = (): string => pickerRef.current?.query ?? ''
+
+  /** 把当前命中与高亮刷进浮层。 */
+  const paintPicker = (): void => {
+    const picker = pickerRef.current
+    if (picker === null) return
+    const history = historyRef.current
+    const hits = matchesOf(history, picker.query)
+    const highlight = nextIndex(picker.highlight, 0, hits.length)
+    pickerRef.current = { ...picker, highlight }
+    showHistoryPanel(
+      {
+        texts: hits.map((index) => history[index] ?? ''),
+        highlight,
+        query: picker.query,
+        shown: hits.length,
+        total: history.length,
+      },
+      { onPick: pickFromPanel, onDismiss: closePicker },
+    )
+  }
+
+  const openPicker = (): void => {
+    pickerRef.current = { query: '', highlight: 0 }
+    hideHistoryPanel()
+    paintPicker()
+  }
+
+  const closePicker = (): void => {
+    pickerRef.current = null
+    hideHistoryPanel()
+  }
+
+  /** 回填高亮条目：写草稿、光标到末尾、焦点回输入框。 */
+  const acceptPicker = (): void => {
+    const picker = pickerRef.current
+    if (picker === null) return
+    const history = historyRef.current
+    const hits = matchesOf(history, picker.query)
+    const at = picker.highlight >= 0 && picker.highlight < hits.length ? picker.highlight : hits.length - 1
+    const index = hits[at]
+    const text = index === undefined ? undefined : history[index]
+    closePicker()
+    if (text === undefined || text === '') return
+    liveRef.current.inputActions.setDraft(text)
+    browseRef.current = RESET_BROWSE
+    // Lexical 写草稿是异步的，等一帧再放光标，否则会被内部重渲染覆盖。
+    requestAnimationFrame(() => {
+      const host = editorHost()
+      if (host === null) return
+      focusEditor(host)
+      setEditorCaret(host, text.length)
+    })
+  }
+
+  /** 鼠标点中某一行：回填该条。 */
+  const pickFromPanel = (index: number): void => {
+    const picker = pickerRef.current
+    if (picker === null) return
+    pickerRef.current = { ...picker, highlight: index }
+    acceptPicker()
+  }
+
+  const setQuery = (query: string): void => {
+    const picker = pickerRef.current
+    if (picker === null) return
+    // 换查询词就回到最新一条，避免停在一个越界的高亮上。
+    pickerRef.current = { query, highlight: 0 }
+    paintPicker()
+  }
+
+  const moveHighlight = (where: 'older' | 'newer' | 'newest' | 'oldest'): void => {
+    const picker = pickerRef.current
+    if (picker === null) return
+    const total = matchesOf(historyRef.current, picker.query).length
+    if (total === 0) { paintPicker(); return }
+    const next = where === 'newest' ? 0
+      : where === 'oldest' ? total - 1
+        : nextIndex(picker.highlight, where === 'older' ? 1 : -1, total)
+    pickerRef.current = { ...picker, highlight: next }
+    paintPicker()
+  }
   // History keydown listener (mounts once; reads refs at event time):
-  // ↑/↓ browse (with bash-style prefix search when the draft is non-empty)
-  // and Ctrl+R incremental reverse search.
+  // ↑/↓ browse (bash-style prefix search when the draft is non-empty),
+  // Ctrl+R or double Escape for the history list panel.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
       const target = e.target
@@ -265,100 +353,94 @@ export function InputHistory(props: InputHistoryProps) {
       if (!getPrefs().historyEnabled) return
       const history = historyRef.current
       const recall = (index: number): string => history[index] ?? ''
-      const searchMatches = (query: string): number[] => {
-        const out: number[] = []
-        history.forEach((entry, i) => { if (entry.includes(query)) out.push(i) })
-        return out
-      }
       const prefixMatches = (prefix: string): number[] => {
         const out: number[] = []
         history.forEach((entry, i) => { if (entry.startsWith(prefix)) out.push(i) })
         return out
       }
 
-      // ---- Ctrl+R: start reverse search, or step to the older match ----
-      if (e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'r') {
-        const active = searchRef.current
-        if (active !== null) {
-          e.preventDefault()
-          e.stopPropagation()
-          const matches = searchMatches(active.query)
-          const pos = matches.indexOf(active.matchIndex)
-          if (pos > 0) {
-            const matchIndex = matches[pos - 1] ?? 0
-            searchRef.current = { ...active, matchIndex }
-            live.inputActions.setDraft(recall(matchIndex))
-            showSearchOverlay(active.query, recall(matchIndex))
-          }
-          return
-        }
-        if (history.length === 0) return
-        e.preventDefault()
-        e.stopPropagation()
-        hideSelectionToolbar()
-        const matchIndex = history.length - 1
-        searchRef.current = { preSearch: live.draft, query: '', matchIndex }
-        live.inputActions.setDraft(recall(matchIndex))
-        showSearchOverlay('', recall(matchIndex))
-        return
-      }
+      // ---- history list panel: Ctrl+R or a double Escape opens it ----
+      //
+      // 打开后焦点留在输入框：输入过滤、↑↓ 移动高亮、Enter/Tab 回填、Esc 关闭。
+      // 宿主 Menu 的方向键行走依赖真实焦点搬进列表（lib/index.js 的 anchored 判断），
+      // 与「焦点留输入框」互斥，所以浮层与键盘都自己实现。
+      const prefs = getPrefs()
+      const panel = pickerRef.current
+      const ctrlR = e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'r'
 
-      // ---- active reverse search: typed keys feed the query ----
-      const active = searchRef.current
-      if (active !== null) {
-        if (e.key === 'Enter' && !e.shiftKey) {
+      if (panel !== null) {
+        // 面板已开：所有键都先归它，避免同一次按键既过滤又触发宿主行为。
+        if (ctrlR) {
           e.preventDefault(); e.stopPropagation()
-          searchRef.current = null
-          hideSearchOverlay()
+          closePicker()
           return
         }
         if (e.key === 'Escape') {
+          // 面板无条件先消费 Esc：否则关面板时会连带关掉别的浮层。
           e.preventDefault(); e.stopPropagation()
-          searchRef.current = null
-          hideSearchOverlay()
-          live.inputActions.setDraft(active.preSearch)
+          closePicker()
+          return
+        }
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault(); e.stopPropagation()
+          acceptPicker()
+          return
+        }
+        if (e.key === 'Tab' && !e.shiftKey) {
+          e.preventDefault(); e.stopPropagation()
+          acceptPicker()
+          return
+        }
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'Home' || e.key === 'End') {
+          if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) {
+            closePicker()
+            return
+          }
+          e.preventDefault(); e.stopPropagation()
+          moveHighlight(e.key === 'ArrowUp' ? 'older' : e.key === 'ArrowDown' ? 'newer' : e.key === 'Home' ? 'newest' : 'oldest')
           return
         }
         if (e.key === 'Backspace') {
           e.preventDefault(); e.stopPropagation()
-          const query = active.query.slice(0, -1)
-          const matches = searchMatches(query)
-          if (query === '') {
-            const matchIndex = history.length - 1
-            searchRef.current = { ...active, query, matchIndex }
-            live.inputActions.setDraft(recall(matchIndex))
-            showSearchOverlay('', recall(matchIndex))
-          } else if (matches.length > 0) {
-            const matchIndex = matches[matches.length - 1] ?? 0
-            searchRef.current = { ...active, query, matchIndex }
-            live.inputActions.setDraft(recall(matchIndex))
-            showSearchOverlay(query, recall(matchIndex))
-          } else {
-            searchRef.current = { ...active, query, matchIndex: -1 }
-            showSearchOverlay(query, '(无匹配)')
-          }
+          setQuery(activeQuery().slice(0, -1))
           return
         }
         if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
           e.preventDefault(); e.stopPropagation()
-          const query = active.query + e.key
-          const matches = searchMatches(query)
-          const matchIndex = matches.length > 0 ? (matches[matches.length - 1] ?? 0) : -1
-          searchRef.current = { ...active, query, matchIndex }
-          if (matchIndex >= 0) {
-            live.inputActions.setDraft(recall(matchIndex))
-            showSearchOverlay(query, recall(matchIndex))
-          } else {
-            live.inputActions.setDraft(active.preSearch)
-            showSearchOverlay(query, '(无匹配)')
-          }
+          setQuery(activeQuery() + e.key)
           return
         }
-        // Any other key exits the search, keeping the current match (the key
-        // then applies to the draft natively).
-        searchRef.current = null
-        hideSearchOverlay()
+        // 其余按键（Home 之外的导航、粘贴、快捷键等）先关面板，再交回宿主。
+        closePicker()
         return
+      }
+
+      // ---- 关闭态：两个入口 ----
+      if (ctrlR) {
+        if (prefs.historyGesture === 'esc') return
+        if (history.length === 0) return
+        e.preventDefault(); e.stopPropagation()
+        hideSelectionToolbar()
+        openPicker()
+        return
+      }
+      // 双击 Esc：手势关闭、历史为空时不认，且任何非 Esc 的键都清零待定状态
+      // （Codex 的 primed 取消规则），否则上一次 Esc 会一直挂着等着配对。
+      if (e.key !== 'Escape') {
+        lastEscapeRef.current = 0
+      } else if (prefs.historyGesture !== 'ctrlR' && history.length > 0) {
+        const now = performance.now()
+        if (isDoubleEscape(lastEscapeRef.current, now)) {
+          e.preventDefault(); e.stopPropagation()
+          lastEscapeRef.current = 0
+          hideSelectionToolbar()
+          openPicker()
+          return
+        }
+        // 第一次 Esc 只记时间戳，不消费：单按 Esc 仍要能关掉工具栏等既有浮层。
+        lastEscapeRef.current = now
+      } else {
+        lastEscapeRef.current = 0
       }
 
       // ---- arrow keys: prefix search (non-empty draft) or plain browse ----
@@ -430,7 +512,11 @@ export function InputHistory(props: InputHistoryProps) {
       }
     }
     document.addEventListener('keydown', onKeyDown, true)
-    return () => { document.removeEventListener('keydown', onKeyDown, true) }
+    return () => {
+      document.removeEventListener('keydown', onKeyDown, true)
+      // 卸载时收掉浮层：否则切换会话或插件热重载后 body 上会留下孤儿节点。
+      closePicker()
+    }
   }, [])
 
   // Right-click paste (terminal style): a right-click on the composer editor
