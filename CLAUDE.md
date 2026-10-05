@@ -65,7 +65,10 @@
 - 改动前先核对本机 DSH 0.2.0-rc.2 的真实类型声明与实现，不凭记忆猜 API。
 - 纯函数行为由 `node --experimental-strip-types --test test/*.test.ts` 覆盖（prefs-model 13 项、history-model 7 项）。
 - 类型检查：`node node_modules/typescript/bin/tsc --noEmit`；构建：`tsc -p tsconfig.build.json && tsdown`，两步都要跑，只跑 tsc 会漏掉声明产物。
+- `pnpm install` 会触发 `prepare`（即 `pnpm build`）。若 typescript 报 `TS7006: Parameter 's' implicitly has an 'any' type`，说明 `@deepseek-ai/dsh-client-store` 没装——它是 `dsh-client-ui-conversation` 的传递依赖但不在本仓库依赖树里，`useInput` 的 `SnapshotSelectorHook<InputState>` 来自它。装完记得 `git checkout -- package.json`（pnpm 会顺手重排依赖顺序）。
 - 浏览器验收用隔离 profile `prompt-history-e2e-v3`（bundles: dsh-base + dsh-web-app + dsh-prompt-history），命令 `dsh --profile prompt-history-e2e-v3 --port <port> --no-open`。
+- **新建 profile 的正确做法**：写好 `package.json` / `cordis.yml` / `cordis.patch.yml` 后，不要跑 `pnpm install`。宿主用 dsh 自己的解析器读 peer 依赖，`pnpm install` 装出的 `.modules.yaml` 会让它报「Unexpected end of JSON input」并让 72 个插件全部 import 失败。正确做法是手工建目录联接：`node_modules\dsh-prompt-history` -> 仓库根（`New-Item -ItemType Junction`），node_modules 里只放这一个条目。
+- 全新 profile 首次打开会弹「预览版说明」模态，遮住整个页面；Playwright 脚本要先点掉 `[role=dialog] button` 里的「继续」再继续操作。
 - 本机 Playwright 没有 chromium，需要 `executable_path=r'C:\Program Files\Google\Chrome\Application\chrome.exe'`。
 - 每次写操作后必须回读 `POST /api/settings/describe` 的真值并核对 profile 的 cordis.patch.yml，不能只看 DOM 或控件变色。
 - 禁用插件用 `--patch ./disabled.yml`（`- id: dsh-prompt-history` + `disabled: true`）验证：配置卡消失、命名空间从 describe 消失。
