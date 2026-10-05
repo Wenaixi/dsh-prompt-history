@@ -72,10 +72,14 @@ interface BrowseState {
 
 /** One open history list session (null = the panel is closed). */
 interface PickerState {
-  /** The incremental filter typed so far. */
+  /** 当前过滤词，始终等于草稿去掉 origin 之后的剩余部分。 */
   readonly query: string
   /** Highlight position within the match array; -1 = no match. */
   readonly highlight: number
+  /** 开面板前的草稿；取消时原样写回。 */
+  readonly origin: string
+  /** 上一次读到的草稿，用来判断输入框这一次是打了一个字还是删了一个字。 */
+  readonly seen: string
 }
 
 /** Not-browsing state; also the reset target after edits and session switches. */
@@ -249,12 +253,25 @@ export function InputHistory(props: InputHistoryProps) {
     if (browse.index !== -1 && draft !== browse.lastSet) browseRef.current = RESET_BROWSE
   }, [draft])
 
+  // 面板开着时草稿就是查询词：每敲一个字（中文输入法 group 结束后同样成立）
+  // 重新过滤一遍。这比逐键累加 query 可靠——composition 期间浏览器不发 keydown，
+  // 攒按键永远攒不到汉字。退格删到 origin 以内时查询词归零，继续删就是改草稿。
+  useEffect(() => {
+    const picker = pickerRef.current
+    if (picker === null || draft === picker.seen) return
+    const keepsOrigin = draft.length >= picker.origin.length && draft.startsWith(picker.origin)
+    const query = keepsOrigin ? draft.slice(picker.origin.length) : draft
+    pickerRef.current = { query, highlight: 0, origin: keepsOrigin ? picker.origin : draft, seen: draft }
+    paintPicker()
+  }, [draft])
+
   // ---- 历史列表面板 ----
   //
-  // 面板状态只有 query 与 highlight 两个字段，刻意不复用 browseRef：浏览历史的
-  // effect 会在草稿变化时把 browseRef 重置，若高亮搭在上面会被自己抹掉。
-  const activeQuery = (): string => pickerRef.current?.query ?? ''
-
+  // 面板状态刻意不复用 browseRef：浏览历史的 effect 会在草稿变化时把 browseRef
+  // 重置，若高亮搭在上面会被自己抹掉。
+  //
+  // 查询词取自输入框本身（草稿），而不是把按键一个一个攒起来：中文输入法组字
+  // 时浏览器只发 composition 事件，攒按键永远攒不到汉字。
   /** 把当前命中与高亮刷进浮层。 */
   const paintPicker = (): void => {
     const picker = pickerRef.current
@@ -271,12 +288,13 @@ export function InputHistory(props: InputHistoryProps) {
         shown: hits.length,
         total: history.length,
       },
-      { onPick: pickFromPanel, onDismiss: closePicker },
+      { onPick: pickFromPanel, onDismiss: cancelPicker },
     )
   }
 
   const openPicker = (): void => {
-    pickerRef.current = { query: '', highlight: 0 }
+    const seed = liveRef.current.draft
+    pickerRef.current = { query: '', highlight: 0, origin: seed, seen: seed }
     hideHistoryPanel()
     paintPicker()
   }
@@ -308,20 +326,22 @@ export function InputHistory(props: InputHistoryProps) {
     })
   }
 
+  /** 取消：把草稿还原成开面板前的那一行。 */
+  const cancelPicker = (): void => {
+    const picker = pickerRef.current
+    if (picker !== null && liveRef.current.draft !== picker.origin) {
+      liveRef.current.inputActions.setDraft(picker.origin)
+      browseRef.current = RESET_BROWSE
+    }
+    closePicker()
+  }
+
   /** 鼠标点中某一行：回填该条。 */
   const pickFromPanel = (index: number): void => {
     const picker = pickerRef.current
     if (picker === null) return
     pickerRef.current = { ...picker, highlight: index }
     acceptPicker()
-  }
-
-  const setQuery = (query: string): void => {
-    const picker = pickerRef.current
-    if (picker === null) return
-    // 换查询词就回到最新一条，避免停在一个越界的高亮上。
-    pickerRef.current = { query, highlight: 0 }
-    paintPicker()
   }
 
   const moveHighlight = (where: 'older' | 'newer' | 'newest' | 'oldest'): void => {
@@ -346,7 +366,10 @@ export function InputHistory(props: InputHistoryProps) {
       if (card === null) return
       // IME composition stays native; the suggestion menu owns the keys.
       if (e.isComposing || e.keyCode === 229) return
-      if (card.querySelector(OPEN_MENU) !== null) return
+      // 面板已开时不让位给建议菜单：取消面板会还原草稿，还原出来的那行若带 / 或 @
+      // 会顺手弹出建议菜单，若此时才检查 OPEN_MENU，面板就再也关不掉了。
+      const panelOpen = pickerRef.current !== null
+      if (!panelOpen && card.querySelector(OPEN_MENU) !== null) return
       const live = liveRef.current
       if (live.phase === 'adjudicating' || live.phase === 'submitting' || live.removed) return
       // 历史功能被关掉：↑/↓ 与 Ctrl+R 全部交还宿主，不拦截任何键。
@@ -365,53 +388,35 @@ export function InputHistory(props: InputHistoryProps) {
       // 宿主 Menu 的方向键行走依赖真实焦点搬进列表（lib/index.js 的 anchored 判断），
       // 与「焦点留输入框」互斥，所以浮层与键盘都自己实现。
       const prefs = getPrefs()
-      const panel = pickerRef.current
       const ctrlR = e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'r'
 
-      if (panel !== null) {
+      if (panelOpen) {
         // 面板已开：所有键都先归它，避免同一次按键既过滤又触发宿主行为。
         if (ctrlR) {
           e.preventDefault(); e.stopPropagation()
-          closePicker()
+          cancelPicker()
           return
         }
         if (e.key === 'Escape') {
           // 面板无条件先消费 Esc：否则关面板时会连带关掉别的浮层。
           e.preventDefault(); e.stopPropagation()
-          closePicker()
+          cancelPicker()
           return
         }
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault(); e.stopPropagation()
-          acceptPicker()
-          return
-        }
-        if (e.key === 'Tab' && !e.shiftKey) {
+        if ((e.key === 'Enter' || e.key === 'Tab') && !e.shiftKey) {
           e.preventDefault(); e.stopPropagation()
           acceptPicker()
           return
         }
         if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'Home' || e.key === 'End') {
-          if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) {
-            closePicker()
-            return
-          }
+          if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return
           e.preventDefault(); e.stopPropagation()
-          moveHighlight(e.key === 'ArrowUp' ? 'older' : e.key === 'ArrowDown' ? 'newer' : e.key === 'Home' ? 'newest' : 'oldest')
+          // 列表按「最新在上」渲染，所以 ↓ 是往下走更旧，↑ 是回到更新的那条。
+          moveHighlight(e.key === 'ArrowUp' ? 'newer' : e.key === 'ArrowDown' ? 'older' : e.key === 'Home' ? 'newest' : 'oldest')
           return
         }
-        if (e.key === 'Backspace') {
-          e.preventDefault(); e.stopPropagation()
-          setQuery(activeQuery().slice(0, -1))
-          return
-        }
-        if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-          e.preventDefault(); e.stopPropagation()
-          setQuery(activeQuery() + e.key)
-          return
-        }
-        // 其余按键（Home 之外的导航、粘贴、快捷键等）先关面板，再交回宿主。
-        closePicker()
+        // 其余按键（输入、Backspace、粘贴、快捷键）一律放行给宿主编辑器：
+        // 查询词跟着草稿走（见下面的 draft effect），输入法与 Ctrl+V 才不会失效。
         return
       }
 
