@@ -76,6 +76,16 @@
 - 不为旧 DSH 版本保留兼容层。
 - 不 push、不发布、不改用户日常 profile。
 
+## 历史交互的业界规格（2026-10-05 调研）
+
+- Claude Code 的双击 Esc 是 rewind 回滚菜单，不是历史列表；且在 keybindings.json 里无法重绑定或关闭（issue 43717）。
+- Claude Code 的输入历史列表在 fullscreen 渲染下挂在 Ctrl+R：输入过滤、↑↓ 移动、Ctrl+S 切范围（本会话 / 本项目 / 所有项目）、Enter 或 Tab 接受、Esc 取消；最新优先、重复折叠、命中词高亮。
+- 还原源码可读位置（Rito-w/ClaudeCode）：src/history.ts（MAX_HISTORY_ITEMS = 100）、src/components/MessageSelector.tsx（MAX_VISIBLE_MESSAGES = 7）、src/keybindings/defaultBindings.ts、src/keybindings/KeybindingProviderSetup.tsx（CHORD_TIMEOUT_MS = 1000）。
+- 双击手势的时间窗参考：pi rewind 扩展 500 ms（第一次透传、第二次消费）、Codex 中断确认约 2 秒、Claude Code 和弦 1000 ms。
+- fzf 的 Ctrl-R 调历史、Ctrl-T 调文件，是两个键对应两个数据集；再按 Ctrl-R 只切换排序方式，不是切全量列表。
+- 浏览器冲突：中文输入法组字中的 Esc 必须让给 IME（检查 isComposing / keyCode 229）；Esc 已有三个消费者（复制工具栏、会话目录、反向搜索放弃），新增浮层必须做优先级仲裁。
+- 宿主 0.2.0-rc.2 已提供 Menu（portal、↑↓/Home/End、Enter/Tab、外部点击关闭、IME 守卫、selection='fill'）与 Tooltip，实现列表不需要新增依赖；没有 listbox 原语，也没有虚拟列表。
+- 完整计划见 .superpowers/sdd/refactor-plan/history-picker-plan.md。
 ## 键位速查（供文案与用户答疑）
 
 - ↑：输入框为空时调出最近一条提问；先打字再按 ↑，只在以这串字开头的历史里往回找（bash 的 history-search-backward）；连按 ↑ 继续往更早的匹配走。
