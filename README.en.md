@@ -1,6 +1,6 @@
 <div align="center">
 
-# ⌨️ dsh-prompt-history
+# ⌨️ @wenaixi/dsh-prompt-history
 
 **Terminal-style input for the DeepSeek Harness Web GUI composer — bash-like prompt history, copy & quote, and right-click paste.**
 
@@ -9,8 +9,8 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![DSH plugin](https://img.shields.io/badge/dsh-plugin-✅-green)](https://github.com/topics/dsh-plugin)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](#)
-[![npm version](https://img.shields.io/npm/v/dsh-prompt-history)](https://www.npmjs.com/package/dsh-prompt-history)
-[![npm downloads](https://img.shields.io/npm/dm/dsh-prompt-history)](https://www.npmjs.com/package/dsh-prompt-history)
+[![npm version](https://img.shields.io/npm/v/@wenaixi/dsh-prompt-history)](https://www.npmjs.com/package/@wenaixi/dsh-prompt-history)
+[![npm downloads](https://img.shields.io/npm/dm/@wenaixi/dsh-prompt-history)](https://www.npmjs.com/package/@wenaixi/dsh-prompt-history)
 
 **English** · [简体中文](README.md) · [Español](README.es.md) · [Português](README.pt.md)
 
@@ -30,7 +30,7 @@
 
 ## What you get
 
-`dsh-prompt-history` puts a terminal's input history into the DeepSeek Harness Web GUI composer:
+`@wenaixi/dsh-prompt-history` puts a terminal's input history into the DeepSeek Harness Web GUI composer:
 
 1. **Shell-style arrow recall** — with an empty draft, **Up** recalls the most recently sent message (newest first); **with a typed prefix, Up jumps to the most recent message starting with that prefix** (bash `history-search-backward`), keep pressing Up to walk further back through matches; **Down** walks forward (including forward through prefix matches) and, at the bottom edge, **restores the line you were typing before browsing began** (readline pending-line behavior).
 2. **Edit exits browsing** — editing the draft while browsing drops back to the live line.
@@ -47,16 +47,16 @@ Pure UI behavior: no session events, no agent-loop changes, no model requests. R
 
 ```sh
 # 1. install the bundle into your profile
-dsh plugin --profile web add dsh-prompt-history
+dsh plugin --profile web add @wenaixi/dsh-prompt-history
 
 # 2. refresh the page — no service restart needed
 ```
 
 ## Install & uninstall
 
-- **npm channel** (published releases): `dsh plugin --profile web add dsh-prompt-history`
-- **git channel** (local dev, latest `main`): `dsh plugin --profile web add "github:Xiaofei-fei/dsh-prompt-history#main"` (a source checkout must be built first — `pnpm run build`; an unbuilt bundle refuses to boot)
-- **uninstall**: `dsh plugin --profile web remove dsh-prompt-history`
+- **npm channel** (published releases): `dsh plugin --profile web add @wenaixi/dsh-prompt-history`
+- **git channel** (local dev, latest `main`): `dsh plugin --profile web add "github:Wenaixi/dsh-prompt-history#main"` (a source checkout must be built first — `pnpm run build`; an unbuilt bundle refuses to boot)
+- **uninstall**: `dsh plugin --profile web remove @wenaixi/dsh-prompt-history`
 
 ## Configuration
 

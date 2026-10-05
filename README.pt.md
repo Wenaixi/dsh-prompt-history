@@ -1,6 +1,6 @@
 <div align="center">
 
-# ⌨️ dsh-prompt-history
+# ⌨️ @wenaixi/dsh-prompt-history
 
 **Entrada estilo terminal para o compositor da Web GUI do DeepSeek Harness: histórico de prompts tipo bash, copiar e citar, e colar com botão direito.**
 
@@ -9,8 +9,8 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![DSH plugin](https://img.shields.io/badge/dsh-plugin-✅-green)](https://github.com/topics/dsh-plugin)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](#)
-[![npm version](https://img.shields.io/npm/v/dsh-prompt-history)](https://www.npmjs.com/package/dsh-prompt-history)
-[![npm downloads](https://img.shields.io/npm/dm/dsh-prompt-history)](https://www.npmjs.com/package/dsh-prompt-history)
+[![npm version](https://img.shields.io/npm/v/@wenaixi/dsh-prompt-history)](https://www.npmjs.com/package/@wenaixi/dsh-prompt-history)
+[![npm downloads](https://img.shields.io/npm/dm/@wenaixi/dsh-prompt-history)](https://www.npmjs.com/package/@wenaixi/dsh-prompt-history)
 
 [English](README.en.md) · [简体中文](README.md) · [Español](README.es.md) · **Português**
 
@@ -29,7 +29,7 @@
 
 ## O que você obtém
 
-`dsh-prompt-history` coloca o histórico de um terminal no compositor da Web GUI do DeepSeek Harness:
+`@wenaixi/dsh-prompt-history` coloca o histórico de um terminal no compositor da Web GUI do DeepSeek Harness:
 
 1. **Recuperação com setas estilo shell** — com o rascunho vazio, **↑** recupera a mensagem enviada mais recente (a mais nova primeiro); **com um prefixo digitado, ↑ salta para a mensagem mais recente que começa com esse prefixo** (`history-search-backward` do bash); continue pressionando ↑ para voltar pelas correspondências; **↓** avança (inclusive pelas correspondências de prefixo) e, na borda inferior, **restaura a linha que você digitava antes de começar a navegar** (comportamento pending-line do readline).
 2. **Editar sai da navegação** — editar o rascunho durante a navegação volta para a linha ativa.
@@ -46,16 +46,16 @@ Comportamento puro de UI: sem eventos de sessão, sem mudanças no loop do agent
 
 ```sh
 # 1. instale o bundle no seu perfil
-dsh plugin --profile web add dsh-prompt-history
+dsh plugin --profile web add @wenaixi/dsh-prompt-history
 
 # 2. recarregue a página — sem necessidade de reiniciar o serviço
 ```
 
 ## Instalar e desinstalar
 
-- **Canal npm** (versões publicadas): `dsh plugin --profile web add dsh-prompt-history`
-- **Canal git** (desenvolvimento local, último `main`): `dsh plugin --profile web add "github:Xiaofei-fei/dsh-prompt-history#main"` (um checkout de código precisa ser compilado primeiro — `pnpm run build`; um bundle não compilado se recusa a iniciar)
-- **Desinstalar**: `dsh plugin --profile web remove dsh-prompt-history`
+- **Canal npm** (versões publicadas): `dsh plugin --profile web add @wenaixi/dsh-prompt-history`
+- **Canal git** (desenvolvimento local, último `main`): `dsh plugin --profile web add "github:Wenaixi/dsh-prompt-history#main"` (um checkout de código precisa ser compilado primeiro — `pnpm run build`; um bundle não compilado se recusa a iniciar)
+- **Desinstalar**: `dsh plugin --profile web remove @wenaixi/dsh-prompt-history`
 
 ## Configuração
 

@@ -8,7 +8,7 @@
 # 第一次改动的正是那一项，组合结果与提交值必然不同。
 - insert:
     - id: dsh-prompt-history
-      name: dsh-prompt-history
+      name: @wenaixi/dsh-prompt-history
       config:
         copyMode: toolbar
         rightClickPaste: true

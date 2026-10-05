@@ -1,7 +1,7 @@
 {
-  "name": "dsh-prompt-history",
-  "version": "1.2.15",
-  "description": "Terminal-style prompt history, selection copy/quote, right-click paste and a draggable chat directory for the DSH composer (zh/en).",
+  "name": "@wenaixi/dsh-prompt-history",
+  "version": "2.0.0",
+  "description": "Terminal-style prompt history, selection copy/quote and right-click paste for the DSH composer (zh/en).",
   "keywords": [
     "dsh",
     "dsh-plugin",

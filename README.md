@@ -1,6 +1,6 @@
 <div align="center">
 
-# ⌨️ dsh-prompt-history
+# ⌨️ @wenaixi/dsh-prompt-history
 
 **DSH Web 输入框的「类 Linux shell」提示词历史 + 终端式复制粘贴插件。**
 
@@ -9,8 +9,8 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![DSH plugin](https://img.shields.io/badge/dsh-plugin-✅-green)](https://github.com/topics/dsh-plugin)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](#)
-[![npm version](https://img.shields.io/npm/v/dsh-prompt-history)](https://www.npmjs.com/package/dsh-prompt-history)
-[![npm downloads](https://img.shields.io/npm/dm/dsh-prompt-history)](https://www.npmjs.com/package/dsh-prompt-history)
+[![npm version](https://img.shields.io/npm/v/@wenaixi/dsh-prompt-history)](https://www.npmjs.com/package/@wenaixi/dsh-prompt-history)
+[![npm downloads](https://img.shields.io/npm/dm/@wenaixi/dsh-prompt-history)](https://www.npmjs.com/package/@wenaixi/dsh-prompt-history)
 
 [English](README.en.md) · **简体中文** · [Español](README.es.md) · [Português](README.pt.md)
 
@@ -30,7 +30,7 @@
 
 ## 你能得到什么
 
-`dsh-prompt-history` 把终端的输入历史搬进 DeepSeek Harness Web 输入框：
+`@wenaixi/dsh-prompt-history` 把终端的输入历史搬进 DeepSeek Harness Web 输入框：
 
 1. **类 shell 的方向键召回** — 空输入时 **↑** 召回上一条发送过的消息（最新在前）；**输入前缀后按 ↑** 跳到最近一条以该前缀开头的消息（bash 的 `history-search-backward` 行为），继续按 ↑ 往前翻匹配；**↓** 向后翻（含前缀匹配的前向），翻到底时**恢复你翻历史之前正在输入的那一行**（readline 的 pending-line 行为）。
 2. **编辑即退出** — 浏览历史时一旦动手编辑，自动回到当前行，不再继续翻。
@@ -48,20 +48,20 @@
 
 ```sh
 # 1. 把插件装进你的 profile
-dsh plugin --profile web add dsh-prompt-history
+dsh plugin --profile web add @wenaixi/dsh-prompt-history
 
 # 2. 刷新页面即可使用（无需重启服务）
 ```
 
 ## 安装与卸载
 
-- **npm 渠道**（已发布版本）：`dsh plugin --profile web add dsh-prompt-history`
-- **源码渠道**（本地开发，最新 `main`）：`dsh plugin --profile web add "github:Xiaofei-fei/dsh-prompt-history#main"`（源码检出需先 `pnpm run build` —— 未构建的 bundle 会拒绝启动）
-- **卸载**：`dsh plugin --profile web remove dsh-prompt-history`
+- **npm 渠道**（已发布版本）：`dsh plugin --profile web add @wenaixi/dsh-prompt-history`
+- **源码渠道**（本地开发，最新 `main`）：`dsh plugin --profile web add "github:Wenaixi/dsh-prompt-history#main"`（源码检出需先 `pnpm run build` —— 未构建的 bundle 会拒绝启动）
+- **卸载**：`dsh plugin --profile web remove @wenaixi/dsh-prompt-history`
 
 ## 配置
 
-打开 **插件 → `dsh-prompt-history` → 配置**（由 DSH 宿主配置持久化；旧版浏览器设置会在首次打开时自动迁移）：
+打开 **插件 → `@wenaixi/dsh-prompt-history` → 配置**（由 DSH 宿主配置持久化；旧版浏览器设置会在首次打开时自动迁移）：
 
 | 选项 | 默认 | 说明 |
 |---|---|---|
