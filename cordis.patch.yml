@@ -1,8 +1,17 @@
-# dsh-prompt-history bundle patch — bash-like prompt history for the composer.
+# dsh-prompt-history 的组合包 patch：在 dsh.client 名册里插入一行，挂载浏览器半侧。
 #
-# Mounts the browser half by inserting one row into the dsh.client roster; the
-# loader imports the package root (empty node half) and the modules node half
-# serves exports["./client"] to the browser.
+# Loader 导入包根（上面的 Host 半侧），modules 节点把 exports["./client"] 交给浏览器。
+#
+# config 必须与 src/index.ts 的 schema 默认值逐字段一致。这是硬约束：config-editor
+# 写入前会把「组合后的条目配置」与「用户提交的新值」做深比较，不一致就判定配置被
+# 更高层覆盖，直接拒绝写入（settings/rejected）。少写字段同样会被拒绝——因为用户
+# 第一次改动的正是那一项，组合结果与提交值必然不同。
 - insert:
     - id: dsh-prompt-history
       name: dsh-prompt-history
+      config:
+        copyMode: toolbar
+        rightClickPaste: true
+        historyEnabled: true
+        globalHistory: false
+        tocVisible: true

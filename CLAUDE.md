@@ -3,61 +3,83 @@
 ## 项目定位
 
 - 包名：dsh-prompt-history。
-- 功能：为 DSH Web composer 提供终端式输入历史、前缀搜索、Ctrl+R 反向搜索、选择复制或引用、右键粘贴，以及可选的跨会话历史和 Chat TOC。
-- 插件形态：Host 空实现 + Web Client 双面插件。
-- 当前主分支：main；默认只进行本地修改，不自动 push。
+- 功能：为 DSH 的对话输入框提供终端式交互：上下键提问历史（前缀搜索、Ctrl+R 反向搜索）、选中文本后的复制或引用、右键粘贴、聊天目录。
+- 插件形态：Host 半侧只声明配置 schema，浏览器半侧交付全部交互与配置卡。
+- 当前主分支：main；只做本地提交，不自动 push。
 
-## 当前实现事实
+## 配置数据通路（唯一真源是宿主）
 
-- Host 入口保持空 apply，浏览器功能由 ./client 导出提供。
-- 当前 composer UI 挂载在 conversation.input.right。
-- 当前设置 UI 挂载在 settings.section，保存到浏览器 localStorage，键名为 dsh-prompt-history.prefs。
-- 当前设置字段：copyMode、rightClickPaste、globalHistory、tocVisible。
-- 当前默认值：copyMode=toolbar、rightClickPaste=true、globalHistory=false、tocVisible=true。
-- 旧 copyOnSelect 字段已经有兼容读取逻辑，copyMode=off 会规范化为 toolbar。
-- 当前设置入口包含复制模式、右键粘贴、跨会话历史和 Chat TOC；上下键历史、前缀搜索和 Ctrl+R 始终启用。
-- 当前仓库没有测试目录、测试脚本、CI 配置或 GitHub Issue 模板。
+- 唯一入口：插件管理页点击本插件后的详情页配置区，slot 为 `plugins.bundle.config`，注册键等于包名。
+- 该 slot 渲染时不带 `form`（对比：`plugins.item` 与 `plugins.row.config` 会带）。因此表单必须由注册方通过 `ctx.inject(['configForms'])` 取得 `configForms.get(NS)`，再经 slot 的 `inject` 面交给组件。
+- 写入链路：组件 form.set/mutate → client ConfigFormController → remote.settings → 宿主 SettingsController → dsh-settings → config-editor → profile 的 cordis.patch.yml。插件不提供任何 HTTP 端点。
+- 命名空间等于 Loader 条目 id（dsh-settings 取 entry.options.id），即 `dsh-prompt-history`；插件不需要注册命名空间。
+- `configForms` 是可选服务，必须用 `ctx.inject` 动态获取，并包在 `whileServed([NS], ...)` 里：宿主没提供命名空间时页面里不出现空配置区。
+- Host 半侧必须 `ctx.inject(['settings'], ...)` 调 `settings.configure({ auto: false }, ctx.fiber)`，否则宿主自生成页面导致入口出现两份。
 
-## 已确认的重构方向
+## 硬约束：cordis.patch.yml 的 config
 
-- 目标运行时以本机实际安装的最新 DSH 为准，优先适配 DSH 0.2.x 及其真实类型声明；不为旧版保留未经验证的兼容层。
-- 设置主入口迁移到插件详情配置区域，使用最新 DSH 的 plugins.bundle.config 契约；不再注册旧的 settings.section 独立导航项。
-- 配置数据迁移到 DSH 宿主配置命名空间，由宿主负责版本化读取、写入、冲突和持久化。
-- 首次打开新配置卡片时，从旧 localStorage 按字段校验并一次性迁移；迁移后宿主配置为唯一来源，不继续双写。
-- 迁移时保留 copyOnSelect、copyMode、rightClickPaste、globalHistory、tocVisible 的兼容读取；坏字段单独丢弃并回退对应默认值，不因单个坏字段放弃整份配置。
-- 配置语义、字段名、默认值和输入历史核心行为保持不变。
-- 设置面板按输入历史、复制与引用、聊天目录分组；采用紧凑单列布局和原生折叠分组。
-- 优先复用 DSH UI primitives，避免重复实现开关、分段控件、输入控件和状态反馈；颜色、间距、圆角使用宿主 token。
-- 设置项变更自动保存；保留恢复默认操作并进行二次确认。需要覆盖加载、保存中、保存失败、恢复默认和成功反馈等状态。
-- 保留中英文国际化，文案可以随结构重写，但不得丢失语言键或改变配置语义。
-- 本次视觉重构主要针对设置面板；输入框挂件、选择工具栏和 Chat TOC 只有在新 DSH 契约要求时才调整。
+- 五个字段必须在 patch 里写全，且与 `src/index.ts` 的 schema 默认值逐字段一致。
+- 原因：config-editor 写入前把「组合后的条目配置」与「用户提交的新值」做深比较，不一致即判定被更高层覆盖并返回 `settings/rejected`。
+- 少写字段同样被拒：用户第一次改动的正是缺失那项，组合结果与提交值必然不同。实测「不写 config」与「只写 insert 行」两种形态都写入失败。
+
+## 当前配置字段与默认值
+
+| 字段 | 取值 | 默认 | 作用 |
+|---|---|---|---|
+| copyMode | off / toolbar / auto | toolbar | 选中文本后：什么都不做 / 弹出工具栏 / 立即复制 |
+| rightClickPaste | bool | true | 输入框上右键直接粘贴 |
+| historyEnabled | bool | true | 关闭后 ↑/↓ 与 Ctrl+R 全部交还宿主 |
+| globalHistory | bool | false | 上下键历史跨会话保留，上限 200 条 |
+| tocVisible | bool | true | 聊天目录把手 |
+
+- 全部字段标记 `volatile()`：Settings 只把 volatile 字段投影成表单。
+- 旧 `copyOnSelect` 仍兼容：true → auto，false → toolbar；`copyMode=off` 是新增合法值，不再被规范化掉。
+
+## 客户端数据面
+
+- `prefs-model.ts`：纯函数与常量，含 DEFAULT_PREFS、normalizePrefs、parseLegacyPrefs、prefsOps、planLegacyMigration。无 DOM、无 cordis。
+- `prefs.ts`：宿主表单快照的投影，订阅后发布给功能组件；表单未就绪时返回默认值，绝不读旧 localStorage。
+- 一次性迁移判据是宿主 `user` 层：空（含空对象）表示从未被写过，此时才提交旧 localStorage，提交成功后删除旧载荷，不需要额外标志键。
+- 配置卡组件只收 slot props 与 inject 注入的表单，不接触 ctx。
+- 订阅表单快照必须用箭头函数包一层：把 `form.getSnapshot` 直接交给 useSyncExternalStore 会丢 this，表单内部读 this.store 抛 TypeError，配置区整块渲染失败。
+
+## 设置界面规范
+
+- 一行标题 + 一行说明 + 右侧控件；说明承载细节，长句不塞进控件标签。
+- 单选用「可点面板块 + role=radio」，不用 SegmentedControl：说明文字要跟着每个选项走。
+- 开关用宿主 `Switch`；行之间只用 0.5px 分隔线，不套第二层卡片。
+- 颜色、圆角、间距一律走 `--dsw-*` token，浅色深色自动跟随。
+- 不可关闭的能力用「说明行 + 徽标」呈现，不画一个永远不动的开关。
+- 文案 zh/en 键集合由 `Record<keyof typeof zh, string>` 强制对齐。
+
+## 插件描述本地化
+
+- `locale/en.json` 与 `locale/zh.json`，形状为 `{ "meta": { "title": ..., "description": ... } }`。
+- 键名就是 `title` / `description`，不要写成 `meta.title`（写成后者会被判空丢弃，页面回落英文）。
+- `package.json` 需要 `exports["./locale/*"]` 与 `files["locale/*.json"]`。
+- 宿主读取逻辑：dsh-app-boot readPluginMeta → dictionariesOf 扫 locale 目录里所有 json → resolveText 按 fallbackChain 取值。
 
 ## 实现与验证规范
 
-- 开始编码前先核对本机 DSH 官方包的类型声明、客户端 slot 声明、settings scope/config schema 和 UI primitives，不能只依据旧源码或记忆。
-- Client 组件只接收 slot props，不传递或保存根 ctx；跨插件协作使用类型导入和宿主服务。
-- 每次配置写入后必须回读宿主配置或接口真值；不能只依据 UI 状态判断成功。
-- 最低验证包括 typecheck、build、打包清单检查、最小配置状态测试，以及真实浏览器验收。
-- 浏览器验收至少覆盖 CLI Web；若本机桌面版使用该插件，还需完全退出 Electron 后重启验收。
-- 验收应确认插件卡片可打开、设置只出现一份、每个控件能写入、刷新或重启后配置保持、默认值可恢复、控制台无错误。
-- 每个小模块完成后独立提交本地 commit；不自动 push。
+- 改动前先核对本机 DSH 0.2.0-rc.2 的真实类型声明与实现，不凭记忆猜 API。
+- 纯函数行为由 `node --experimental-strip-types --test test/prefs-model.test.ts` 覆盖（当前 12 项）。
+- 类型检查：`node node_modules/typescript/bin/tsc --noEmit`；构建：`tsc -p tsconfig.build.json && tsdown`，两步都要跑，只跑 tsc 会漏掉声明产物。
+- 浏览器验收用隔离 profile `prompt-history-e2e-v3`（bundles: dsh-base + dsh-web-app + dsh-prompt-history），命令 `dsh --profile prompt-history-e2e-v3 --port <port> --no-open`。
+- 本机 Playwright 没有 chromium，需要 `executable_path=r'C:\Program Files\Google\Chrome\Application\chrome.exe'`。
+- 每次写操作后必须回读 `POST /api/settings/describe` 的真值并核对 profile 的 cordis.patch.yml，不能只看 DOM 或控件变色。
+- 禁用插件用 `--patch ./disabled.yml`（`- id: dsh-prompt-history` + `disabled: true`）验证：配置卡消失、命名空间从 describe 消失。
 
-## 计划范围
+## 不做的事
 
-### 包含
+- 不自建 HTTP 端点、不新增第三方依赖。
+- 不新增快捷键。
+- 不为旧 DSH 版本保留兼容层。
+- 不 push、不发布、不改用户日常 profile。
 
-- DSH 最新版本依赖与插件包元数据适配。
-- Host 配置 schema 和宿主配置命名空间。
-- localStorage 到宿主配置的一次性迁移。
-- plugins.bundle.config 详情配置卡片。
-- DSH 原生风格的设置面板、状态反馈和国际化文案。
-- 旧 settings.section 入口移除。
-- 最小外部行为测试与真实浏览器验收。
+## 键位速查（供文案与用户答疑）
 
-### 不包含
-
-- 输入历史算法、复制算法、Chat TOC 行为的产品改版。
-- 新增快捷键或新增设置字段。
-- 模型请求、会话协议或非设置相关的宿主功能改造。
-- 旧 DSH 版本的未经验证兼容层。
-- 远程分支同步、自动发布和版本发布流程改造。
+- ↑：输入框为空时调出最近一条提问；先打字再按 ↑，只在以这串字开头的历史里往回找（bash 的 history-search-backward）；连按 ↑ 继续往更早的匹配走。
+- ↓：往更新的方向走；走到最底恢复开始浏览前的那行输入。浏览期间手工编辑会丢弃召回的那行，回到实时草稿。
+- Ctrl+R：进入反向搜索，输入的每个字符都作为「包含」关键词过滤历史，输入框上方显示查询与命中行；再按一次 Ctrl+R 跳到更早的命中；Enter 保留当前命中；Escape 还原搜索前的草稿；Backspace 逐字回退。
+- 右键：输入框内直接粘贴，不弹浏览器菜单。
+- 选中文本：按 copyMode 决定什么都不做、弹工具栏（复制 / 引用为 > 引用块）、或立即复制。

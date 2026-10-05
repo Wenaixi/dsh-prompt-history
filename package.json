@@ -1,7 +1,7 @@
 {
   "name": "dsh-prompt-history",
   "version": "1.2.15",
-  "description": "DSH web plugin: terminal-style input for the composer — bash-like Up/Down prompt history with prefix search and Ctrl+R, selection toolbar with copy and quote (Codex-style > blockquote), right-click paste, toggleable draggable chat TOC, fully internationalized (zh/en), with copy modes in Settings (history sourced from the session's own message log; zero config required).",
+  "description": "Terminal-style prompt history, selection copy/quote, right-click paste and a draggable chat directory for the DSH composer (zh/en).",
   "keywords": [
     "dsh",
     "dsh-plugin",
@@ -35,6 +35,7 @@
       "types": "./lib/types/client/index.d.ts",
       "default": "./lib/client.js"
     },
+    "./locale/*": "./locale/*",
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
@@ -47,12 +48,14 @@
     },
     "client": {
       "inject": [
-        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-api-session-controller",
+        "@deepseek-ai/dsh-client-ui-session",
         "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-renderer",
         "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-ui-plugin-manager",
-        "@deepseek-ai/dsh-client-ui-primitives",
-        "@deepseek-ai/dsh-client-ui-settings"
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-primitives"
       ],
       "platform": "web"
     }
@@ -68,14 +71,17 @@
     "README.en.md",
     "README.es.md",
     "README.pt.md",
+    "locale/*.json",
     "LICENSE"
   ],
   "license": "MIT",
   "peerDependencies": {
     "@deepseek-ai/cordis": "~4.0.4",
     "@deepseek-ai/dsh-client-locale": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-client-runtime": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-api-session-controller": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-session": "0.2.0-rc.2",
     "@deepseek-ai/dsh-client-ui-conversation": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.0-rc.2",
     "@deepseek-ai/dsh-client-ui-plugin-manager": "0.2.0-rc.2",
     "@deepseek-ai/dsh-client-ui-primitives": "0.2.0-rc.2",
     "@deepseek-ai/dsh-client-ui-settings": "0.2.0-rc.2",
@@ -88,13 +94,16 @@
     "@deepseek-ai/cordis": "~4.0.4",
     "@deepseek-ai/schemastery": "~3.18.4",
     "@deepseek-ai/dsh-client-locale": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-client-runtime": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-api-session-controller": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-session": "0.2.0-rc.2",
     "@deepseek-ai/dsh-client-ui-conversation": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.0-rc.2",
     "@deepseek-ai/dsh-client-ui-plugin-manager": "0.2.0-rc.2",
     "@deepseek-ai/dsh-client-ui-primitives": "0.2.0-rc.2",
     "@deepseek-ai/dsh-client-ui-settings": "0.2.0-rc.2",
     "@deepseek-ai/dsh-client-ui-slots": "0.2.0-rc.2",
     "@deepseek-ai/dsh-invariants": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-settings": "0.2.0-rc.2",
     "@types/react": "~18.3.1",
     "@types/react-dom": "~18.3.0",
     "react": "^18.2.0",
@@ -104,7 +113,7 @@
     "unrun": "^0.3.1"
   },
   "scripts": {
-    "build": "rm -rf lib && tsc -p tsconfig.build.json && tsdown",
+    "build": "tsc -p tsconfig.build.json && tsdown",
     "prepare": "pnpm build",
     "typecheck": "tsc --noEmit",
     "bundle": "tsdown",

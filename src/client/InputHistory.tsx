@@ -40,7 +40,7 @@ import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 // Type-only: the runtime SessionStandardProps merge (useSession/sessionId) and
 // the conversation node union.
-import type { ConversationNode } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ConversationNode } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { getPrefs, subscribePrefs } from './prefs.ts'
 import {
   flashCopied, hideSearchOverlay, hideSelectionToolbar, showSearchOverlay, showSelectionToolbar,
@@ -203,7 +203,8 @@ export function InputHistory(props: InputHistoryProps) {
 
   // Seed the ring once on mount when the option is on.
   useEffect(() => {
-    if (getPrefs().globalHistory && historyRef.current.length === 0) {
+    const prefs = getPrefs()
+    if (prefs.historyEnabled && prefs.globalHistory && historyRef.current.length === 0) {
       historyRef.current = loadRing()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -212,7 +213,9 @@ export function InputHistory(props: InputHistoryProps) {
   // Session switch: with global history the ring persists (only the transient
   // browse/search state resets); otherwise a fresh per-session history.
   useEffect(() => {
-    if (!getPrefs().globalHistory) historyRef.current = []
+    // 历史或跨会话记忆任一关闭，都从空的每会话历史开始。
+    const prefs = getPrefs()
+    if (!prefs.historyEnabled || !prefs.globalHistory) historyRef.current = []
     seenRef.current = new Set()
     browseRef.current = RESET_BROWSE
     searchRef.current = null
@@ -258,6 +261,8 @@ export function InputHistory(props: InputHistoryProps) {
       if (card.querySelector(OPEN_MENU) !== null) return
       const live = liveRef.current
       if (live.phase === 'adjudicating' || live.phase === 'submitting' || live.removed) return
+      // 历史功能被关掉：↑/↓ 与 Ctrl+R 全部交还宿主，不拦截任何键。
+      if (!getPrefs().historyEnabled) return
       const history = historyRef.current
       const recall = (index: number): string => history[index] ?? ''
       const searchMatches = (query: string): number[] => {
@@ -602,6 +607,12 @@ export function InputHistory(props: InputHistoryProps) {
         return
       }
       const mode = getPrefs().copyMode
+      // 复制被关掉：不自动复制，也不显示工具栏，只清掉可能残留的旧工具栏。
+      if (mode === 'off') {
+        window.clearTimeout(timer)
+        hideSelectionToolbar()
+        return
+      }
       const host = editorHost()
       const editorActive = host !== null
         && (document.activeElement === host || dragStartedInEditor)
