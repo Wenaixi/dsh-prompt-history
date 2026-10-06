@@ -1,5 +1,5 @@
 /**
- * 历史列表选择器的纯逻辑：过滤、排序、高亮移动、双击手势判定。
+ * 历史列表选择器的纯逻辑：过滤、排序、高亮移动、双击手势判定、相对时间。
  *
  * 这里只有纯函数与常量，不含 DOM、不含 React、不含 cordis，因此可以直接用
  * `node --experimental-strip-types --test` 覆盖。浮层渲染在 feedback.ts，
@@ -34,17 +34,64 @@ export function matchesOf(history: readonly string[], query: string): number[] {
 }
 
 /**
- * 在命中列表里移动高亮，两端环绕。
+ * 字符子序列匹配（复刻 Claude Code HistorySearchDialog 的 isSubsequence）：
+ * query 的每个字符按顺序出现在 text 中即命中，大小写不敏感。
  *
- * @param current - 当前高亮在命中数组里的下标，越界或负数视为未选中。
+ * @param text - 被匹配文本。
+ * @param query - 过滤词。
+ * @returns 是否为子序列。
+ */
+export function isSubsequence(text: string, query: string): boolean {
+  const lowerText = text.toLowerCase()
+  const lowerQuery = query.toLowerCase()
+  let j = 0
+  for (let i = 0; i < lowerText.length && j < lowerQuery.length; i += 1) {
+    if (lowerText[i] === lowerQuery[j]) j += 1
+  }
+  return j === lowerQuery.length
+}
+
+/**
+ * 模糊过滤：先「包含」后「子序列」，各自最新优先、重复折叠。
+ *
+ * 对齐 Claude Code：exact.concat(fuzzy)，包含命中排在模糊命中之前。
+ *
+ * @param history - 历史文本，按时间从旧到新。
+ * @param query - 过滤词；空串时不过滤（返回全部去重倒序）。
+ * @returns 命中下标数组，exact 在前 fuzzy 在后，各自最新优先。
+ */
+export function fuzzyMatchesOf(history: readonly string[], query: string): number[] {
+  if (query === '') return matchesOf(history, '')
+  const exact: number[] = []
+  const fuzzy: number[] = []
+  const seen = new Set<string>()
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    const entry = history[i]
+    if (entry === undefined || entry === '') continue
+    if (seen.has(entry)) continue
+    if (entry.includes(query)) {
+      seen.add(entry)
+      exact.push(i)
+    } else if (isSubsequence(entry, query)) {
+      seen.add(entry)
+      fuzzy.push(i)
+    }
+  }
+  return exact.concat(fuzzy)
+}
+
+/**
+ * 在命中列表里移动高亮，两端夹取（不环绕，对齐 Claude Code FuzzyPicker 的 clamp：
+ * `clamp(current + step, 0, total - 1)`，越界 current 按原值参与运算后夹回）。
+ *
+ * @param current - 当前高亮在命中数组里的下标；越界视为夹取源。
  * @param step - 步长，正数向后（更旧），负数向前（更新）。
  * @param total - 命中条数。
  * @returns 新的高亮下标；无命中时返回 -1。
  */
-export function nextIndex(current: number, step: number, total: number): number {
+export function clampIndex(current: number, step: number, total: number): number {
   if (total <= 0) return -1
-  if (current < 0 || current >= total) return step > 0 ? total - 1 : 0
-  return (current + step + total) % total
+  return Math.max(0, Math.min(total - 1, current + step))
 }
 
 /**
@@ -64,11 +111,49 @@ export function isDoubleEscape(last: number, now: number, windowMs: number = DOU
   return gap >= 0 && gap <= windowMs
 }
 
-// ---- ↑/↓ 顺序浏览（对齐 Claude Code 的 useArrowKeyHistory）----
-//
-// 浏览位置不用「历史下标」而用「已看过几条」（step）：0 表示没在浏览，n≥1 表示
-// 正显示从最新往回数第 n 条。好处是最旧一条的边界天然是 step === total，越界时
-// step 不变、草稿不动，不需要额外的环绕分支。
+/** 相对时间的结构化结果：数值 + 单位；unit='now' 时 value 恒为 0。 */
+export interface RelativeAge {
+  readonly value: number
+  readonly unit: 'now' | 'min' | 'hour' | 'day'
+}
+
+/**
+ * 把时间戳格式化成相对年龄（对齐 Claude Code 的 formatRelativeTimeAgo）。
+ *
+ * 只返回结构化数值不拼文案，文案由调用方按 locale 模板渲染。
+ *
+ * @param ts - 条目时间戳（Unix epoch ms）。
+ * @param now - 当前时间戳（Unix epoch ms）。
+ * @returns 相对年龄；30 天以上、时间戳缺失或未来时间返回 null。
+ */
+export function relativeAgeOf(ts: number, now: number): RelativeAge | null {
+  if (ts <= 0 || now <= 0 || !Number.isFinite(ts) || !Number.isFinite(now)) return null
+  const diff = now - ts
+  if (diff < 0) return null
+  const minutes = Math.floor(diff / 60000)
+  if (minutes < 1) return { value: 0, unit: 'now' }
+  if (minutes < 60) return { value: minutes, unit: 'min' }
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return { value: hours, unit: 'hour' }
+  const days = Math.floor(hours / 24)
+  if (days < 30) return { value: days, unit: 'day' }
+  return null
+}
+
+/**
+ * 已浏览 step 条时对应的历史下标。
+ *
+ * 历史数组按时间从旧到新存放，而浏览从最新一条开始，所以两者方向相反：
+ * step=1 取最后一条（最新），step=total 取第 0 条（最旧）。
+ *
+ * @param step - 已浏览条数，1..total。
+ * @param total - 历史总条数。
+ * @returns 历史数组下标；越界时返回 -1。
+ */
+export function atStep(step: number, total: number): number {
+  if (step < 1 || step > total) return -1
+  return total - step
+}
 
 /**
  * 按一次 ↑ 之后的浏览位置。
@@ -93,19 +178,4 @@ export function upStep(step: number, total: number): number {
  */
 export function downStep(step: number): number {
   return step <= 1 ? 0 : step - 1
-}
-
-/**
- * 已浏览 step 条时对应的历史下标。
- *
- * 历史数组按时间从旧到新存放，而浏览从最新一条开始，所以两者方向相反：
- * step=1 取最后一条（最新），step=total 取第 0 条（最旧）。
- *
- * @param step - 已浏览条数，1..total。
- * @param total - 历史总条数。
- * @returns 历史数组下标；越界时返回 -1。
- */
-export function atStep(step: number, total: number): number {
-  if (step < 1 || step > total) return -1
-  return total - step
 }

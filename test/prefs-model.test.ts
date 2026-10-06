@@ -1,7 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  DEFAULT_PREFS, normalizePrefs, parseLegacyPrefs, planLegacyMigration, prefsOps, draftDiffOps, prefsEqual,
+  DEFAULT_PREFS, MAX_HISTORY_MAX, MAX_HISTORY_MIN, normalizePrefs, parseLegacyPrefs,
+  planLegacyMigration, prefsOps, draftDiffOps, prefsEqual,
   type PluginPrefs,
 } from '../src/client/prefs-model.ts'
 
@@ -18,7 +19,10 @@ test('migrates valid fields independently and maps copyOnSelect', () => {
     copyMode: 'auto',
     rightClickPaste: false,
     historyEnabled: true,
-    historyGesture: 'both',
+    doubleEsc: true,
+    maxHistoryItems: 100,
+    relativeTime: true,
+    fuzzyMatch: true,
     globalHistory: true,
   } satisfies PluginPrefs)
 })
@@ -27,11 +31,23 @@ test('prefers an explicit valid copy mode over the legacy flag', () => {
   assert.equal(parseLegacyPrefs(JSON.stringify({ copyMode: 'toolbar', copyOnSelect: true })).copyMode, 'toolbar')
 })
 
-test('normalizes the history gesture field by field', () => {
-  assert.equal(normalizePrefs({ historyGesture: 'esc' }).historyGesture, 'esc')
-  assert.equal(normalizePrefs({ historyGesture: 'ctrlR' }).historyGesture, 'ctrlR')
-  assert.equal(normalizePrefs({ historyGesture: 'nonsense' }).historyGesture, 'both')
-  assert.equal(parseLegacyPrefs(JSON.stringify({ historyGesture: 'both' })).historyGesture, 'both')
+test('normalizes the boolean prefs field by field', () => {
+  assert.equal(normalizePrefs({ doubleEsc: false }).doubleEsc, false)
+  assert.equal(normalizePrefs({ relativeTime: false }).relativeTime, false)
+  assert.equal(normalizePrefs({ fuzzyMatch: false }).fuzzyMatch, false)
+  assert.equal(normalizePrefs({ doubleEsc: 'yes' }).doubleEsc, true)
+  assert.equal(normalizePrefs({ historyEnabled: 1 }).historyEnabled, true)
+})
+
+test('clamps maxHistoryItems into the allowed range', () => {
+  assert.equal(MAX_HISTORY_MIN, 10)
+  assert.equal(MAX_HISTORY_MAX, 1000)
+  assert.equal(normalizePrefs({ maxHistoryItems: 200 }).maxHistoryItems, 200)
+  assert.equal(normalizePrefs({ maxHistoryItems: 5 }).maxHistoryItems, MAX_HISTORY_MIN)
+  assert.equal(normalizePrefs({ maxHistoryItems: 999999 }).maxHistoryItems, MAX_HISTORY_MAX)
+  assert.equal(normalizePrefs({ maxHistoryItems: '100' }).maxHistoryItems, 100)
+  assert.equal(normalizePrefs({ maxHistoryItems: 12.9 }).maxHistoryItems, 12)
+  assert.equal(parseLegacyPrefs(JSON.stringify({ maxHistoryItems: 500 })).maxHistoryItems, 500)
 })
 
 test('keeps the off copy mode instead of normalizing it away', () => {
@@ -49,7 +65,10 @@ test('normalizes a host value field by field without inheriting copyOnSelect', (
     copyMode: 'toolbar',
     rightClickPaste: true,
     historyEnabled: true,
-    historyGesture: 'both',
+    doubleEsc: true,
+    maxHistoryItems: 100,
+    relativeTime: true,
+    fuzzyMatch: true,
     globalHistory: false,
   } satisfies PluginPrefs)
 })
@@ -61,11 +80,17 @@ test('normalizes non-object host values to the defaults', () => {
 })
 
 test('writes every field as one set operation in a fixed order', () => {
-  assert.deepEqual(prefsOps({ copyMode: 'off', rightClickPaste: false, historyEnabled: false, historyGesture: 'esc', globalHistory: true }), [
+  assert.deepEqual(prefsOps({
+    copyMode: 'off', rightClickPaste: false, historyEnabled: false, doubleEsc: false,
+    maxHistoryItems: 50, relativeTime: false, fuzzyMatch: false, globalHistory: true,
+  }), [
     { op: 'set', path: ['copyMode'], value: 'off' },
     { op: 'set', path: ['rightClickPaste'], value: false },
     { op: 'set', path: ['historyEnabled'], value: false },
-    { op: 'set', path: ['historyGesture'], value: 'esc' },
+    { op: 'set', path: ['doubleEsc'], value: false },
+    { op: 'set', path: ['maxHistoryItems'], value: 50 },
+    { op: 'set', path: ['relativeTime'], value: false },
+    { op: 'set', path: ['fuzzyMatch'], value: false },
     { op: 'set', path: ['globalHistory'], value: true },
   ])
 })
@@ -76,7 +101,10 @@ test('plans one-time migration only while the host has no user layer', () => {
     { op: 'set', path: ['copyMode'], value: 'auto' },
     { op: 'set', path: ['rightClickPaste'], value: true },
     { op: 'set', path: ['historyEnabled'], value: true },
-    { op: 'set', path: ['historyGesture'], value: 'both' },
+    { op: 'set', path: ['doubleEsc'], value: true },
+    { op: 'set', path: ['maxHistoryItems'], value: 100 },
+    { op: 'set', path: ['relativeTime'], value: true },
+    { op: 'set', path: ['fuzzyMatch'], value: true },
     { op: 'set', path: ['globalHistory'], value: false },
   ])
   // 已有用户层说明用户或迁移已写过，旧的 localStorage 不得再覆盖。
@@ -91,7 +119,10 @@ test('treats an empty user layer as never written', () => {
     { op: 'set', path: ['copyMode'], value: 'toolbar' },
     { op: 'set', path: ['rightClickPaste'], value: true },
     { op: 'set', path: ['historyEnabled'], value: true },
-    { op: 'set', path: ['historyGesture'], value: 'both' },
+    { op: 'set', path: ['doubleEsc'], value: true },
+    { op: 'set', path: ['maxHistoryItems'], value: 100 },
+    { op: 'set', path: ['relativeTime'], value: true },
+    { op: 'set', path: ['fuzzyMatch'], value: true },
     { op: 'set', path: ['globalHistory'], value: true },
   ])
 })
@@ -108,7 +139,10 @@ test('refuses to migrate unparsable or non-object legacy payloads', () => {
 })
 
 test('writes only the changed fields between draft and current', () => {
-  const current: PluginPrefs = { copyMode: 'toolbar', rightClickPaste: true, historyEnabled: true, historyGesture: 'both', globalHistory: false }
+  const current: PluginPrefs = {
+    copyMode: 'toolbar', rightClickPaste: true, historyEnabled: true, doubleEsc: true,
+    maxHistoryItems: 100, relativeTime: true, fuzzyMatch: true, globalHistory: false,
+  }
   const draft: PluginPrefs = { ...current, copyMode: 'auto', historyEnabled: false }
   assert.deepEqual(draftDiffOps(draft, current), [
     { op: 'set', path: ['copyMode'], value: 'auto' },
@@ -117,12 +151,18 @@ test('writes only the changed fields between draft and current', () => {
 })
 
 test('draftDiffOps returns nothing when the draft equals the current value', () => {
-  const current: PluginPrefs = { copyMode: 'off', rightClickPaste: false, historyEnabled: false, historyGesture: 'esc', globalHistory: true }
+  const current: PluginPrefs = {
+    copyMode: 'off', rightClickPaste: false, historyEnabled: false, doubleEsc: false,
+    maxHistoryItems: 50, relativeTime: false, fuzzyMatch: false, globalHistory: true,
+  }
   assert.deepEqual(draftDiffOps(current, current), [])
 })
 
 test('prefsEqual compares every field', () => {
-  const a: PluginPrefs = { copyMode: 'toolbar', rightClickPaste: true, historyEnabled: true, historyGesture: 'both', globalHistory: false }
+  const a: PluginPrefs = {
+    copyMode: 'toolbar', rightClickPaste: true, historyEnabled: true, doubleEsc: true,
+    maxHistoryItems: 100, relativeTime: true, fuzzyMatch: true, globalHistory: false,
+  }
   assert.equal(prefsEqual(a, { ...a }), true)
   assert.equal(prefsEqual(a, { ...a, globalHistory: true }), false)
 })

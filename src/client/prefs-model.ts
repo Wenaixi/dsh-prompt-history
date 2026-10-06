@@ -8,12 +8,9 @@
 /** 复制方式：关闭、工具栏按钮、选中即自动复制。 */
 export type CopyMode = 'off' | 'toolbar' | 'auto'
 
-/** 打开历史列表的手势：仅 Ctrl+R、仅双击 Esc、或两者都要。 */
-export type HistoryGesture = 'ctrlR' | 'esc' | 'both'
-
 /** 一条路径寻址的字段写入操作，形状与宿主 remote.settings 的线格式一致。 */
 export type PrefOp =
-  | { op: 'set'; path: string[]; value: boolean | CopyMode | HistoryGesture }
+  | { op: 'set'; path: string[]; value: boolean | number | CopyMode }
   | { op: 'unset'; path: string[] }
 
 /** 插件的用户偏好，字段名与宿主 Config schema 一一对应。 */
@@ -22,10 +19,16 @@ export interface PluginPrefs {
   copyMode: CopyMode
   /** 输入框上右键是否直接粘贴剪贴板内容。 */
   rightClickPaste: boolean
-  /** 上下键历史是否启用；关闭后 Up/Down 与 Ctrl+R 与双击 Esc 全部交还宿主。 */
+  /** 上下键历史是否启用；关闭后全部历史行为交还宿主。 */
   historyEnabled: boolean
-  /** 打开历史列表的手势。 */
-  historyGesture: HistoryGesture
+  /** 双击 Esc 是否启用（非空清空 / 空草稿开列表）；关闭后 Esc 完全交还宿主。 */
+  doubleEsc: boolean
+  /** 历史环与列表的最大条数。 */
+  maxHistoryItems: number
+  /** 历史列表行首是否显示相对时间。 */
+  relativeTime: boolean
+  /** 历史列表过滤是否允许字符子序列模糊匹配。 */
+  fuzzyMatch: boolean
   /** 上下键历史是否跨会话保留。 */
   globalHistory: boolean
 }
@@ -34,12 +37,22 @@ export const DEFAULT_PREFS: PluginPrefs = {
   copyMode: 'toolbar',
   rightClickPaste: true,
   historyEnabled: true,
-  historyGesture: 'both',
+  doubleEsc: true,
+  maxHistoryItems: 100,
+  relativeTime: true,
+  fuzzyMatch: true,
   globalHistory: false,
 }
 
+/** 历史条数上限的合法区间（对应 schema 的 min/max）。 */
+export const MAX_HISTORY_MIN = 10
+export const MAX_HISTORY_MAX = 1000
+
 /** 字段写入顺序固定，便于宿主合并与回读时逐字段比对。 */
-const FIELDS = ['copyMode', 'rightClickPaste', 'historyEnabled', 'historyGesture', 'globalHistory'] as const
+const FIELDS = [
+  'copyMode', 'rightClickPaste', 'historyEnabled', 'doubleEsc',
+  'maxHistoryItems', 'relativeTime', 'fuzzyMatch', 'globalHistory',
+] as const
 
 /** 旧版浏览器配置里已被 copyMode 取代的字段。 */
 interface LegacyPrefs {
@@ -60,9 +73,12 @@ function boolOf(value: unknown, fallback: boolean): boolean {
   return typeof value === 'boolean' ? value : fallback
 }
 
-function historyGestureOf(value: unknown): HistoryGesture {
-  if (value === 'ctrlR' || value === 'esc' || value === 'both') return value
-  return DEFAULT_PREFS.historyGesture
+/** 非负整数并夹在合法区间；非数或越界回退默认。 */
+function intOf(value: unknown, fallback: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
+  if (value < MAX_HISTORY_MIN) return MAX_HISTORY_MIN
+  if (value > MAX_HISTORY_MAX) return MAX_HISTORY_MAX
+  return Math.floor(value)
 }
 
 /**
@@ -74,7 +90,10 @@ export function normalizePrefs(raw: unknown): PluginPrefs {
     copyMode: copyModeOf(raw.copyMode),
     rightClickPaste: boolOf(raw.rightClickPaste, DEFAULT_PREFS.rightClickPaste),
     historyEnabled: boolOf(raw.historyEnabled, DEFAULT_PREFS.historyEnabled),
-    historyGesture: historyGestureOf(raw.historyGesture),
+    doubleEsc: boolOf(raw.doubleEsc, DEFAULT_PREFS.doubleEsc),
+    maxHistoryItems: intOf(raw.maxHistoryItems, DEFAULT_PREFS.maxHistoryItems),
+    relativeTime: boolOf(raw.relativeTime, DEFAULT_PREFS.relativeTime),
+    fuzzyMatch: boolOf(raw.fuzzyMatch, DEFAULT_PREFS.fuzzyMatch),
     globalHistory: boolOf(raw.globalHistory, DEFAULT_PREFS.globalHistory),
   }
 }
@@ -90,7 +109,10 @@ export function parseLegacyPrefs(raw: string | null | undefined): PluginPrefs {
       copyMode: copyModeOf(parsed.copyMode, legacy.copyOnSelect),
       rightClickPaste: boolOf(parsed.rightClickPaste, DEFAULT_PREFS.rightClickPaste),
       historyEnabled: boolOf(parsed.historyEnabled, DEFAULT_PREFS.historyEnabled),
-      historyGesture: historyGestureOf(parsed.historyGesture),
+      doubleEsc: boolOf(parsed.doubleEsc, DEFAULT_PREFS.doubleEsc),
+      maxHistoryItems: intOf(parsed.maxHistoryItems, DEFAULT_PREFS.maxHistoryItems),
+      relativeTime: boolOf(parsed.relativeTime, DEFAULT_PREFS.relativeTime),
+      fuzzyMatch: boolOf(parsed.fuzzyMatch, DEFAULT_PREFS.fuzzyMatch),
       globalHistory: boolOf(parsed.globalHistory, DEFAULT_PREFS.globalHistory),
     }
   } catch {
@@ -135,6 +157,6 @@ export function planLegacyMigration(user: unknown, raw: string | null | undefine
   let parsed: unknown
   try { parsed = JSON.parse(raw) } catch { return undefined }
   if (!isRecord(parsed)) return undefined
-  // historyEnabled 与 historyGesture 在旧载荷里不存在，parseLegacyPrefs 会给它们默认值。
+  // 旧载荷里不存在的新字段由 parseLegacyPrefs 给默认值。
   return prefsOps(parseLegacyPrefs(raw))
 }

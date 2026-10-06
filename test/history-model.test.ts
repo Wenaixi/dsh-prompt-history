@@ -1,7 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  DOUBLE_ESCAPE_MS, atStep, downStep, isDoubleEscape, matchesOf, nextIndex, upStep,
+  DOUBLE_ESCAPE_MS, atStep, clampIndex, downStep, fuzzyMatchesOf, isDoubleEscape,
+  isSubsequence, matchesOf, relativeAgeOf, upStep,
 } from '../src/client/history-model.ts'
 
 test('an empty query returns every distinct entry, newest first', () => {
@@ -17,17 +18,19 @@ test('filters by substring and skips empty entries', () => {
   assert.deepEqual(matchesOf(['deploy now'], 'absent'), [])
 })
 
-test('moves the highlight and wraps at both ends', () => {
-  assert.equal(nextIndex(0, 1, 3), 1)
-  assert.equal(nextIndex(2, 1, 3), 0)
-  assert.equal(nextIndex(0, -1, 3), 2)
+test('clamps the highlight at both ends instead of wrapping', () => {
+  assert.equal(clampIndex(0, 1, 3), 1)
+  assert.equal(clampIndex(2, 1, 3), 2)
+  assert.equal(clampIndex(0, -1, 3), 0)
+  assert.equal(clampIndex(1, -1, 3), 0)
 })
 
 test('lands on an edge when the highlight was unset or stale', () => {
-  assert.equal(nextIndex(-1, 1, 3), 2)
-  assert.equal(nextIndex(9, 1, 3), 2)
-  assert.equal(nextIndex(-1, -1, 3), 0)
-  assert.equal(nextIndex(0, 1, 0), -1)
+  // 越界 current 直接参与 clamp：9+1 → 夹回 2；-1-1 → 夹回 0。
+  assert.equal(clampIndex(-1, 1, 3), 0)
+  assert.equal(clampIndex(9, 1, 3), 2)
+  assert.equal(clampIndex(-1, -1, 3), 0)
+  assert.equal(clampIndex(0, 1, 0), -1)
 })
 
 test('detects a double Escape inside the window and rejects one outside it', () => {
@@ -62,4 +65,30 @@ test('maps the browse step to a history index, newest first', () => {
   assert.equal(atStep(4, 4), 0)
   assert.equal(atStep(0, 4), -1)
   assert.equal(atStep(5, 4), -1)
+})
+
+test('detects a character subsequence, case-insensitively', () => {
+  assert.equal(isSubsequence('deploy now', 'dpl'), true)
+  assert.equal(isSubsequence('Deploy Now', 'dpl'), true)
+  assert.equal(isSubsequence('deploy now', 'dnw'), true)
+  assert.equal(isSubsequence('deploy now', 'nowx'), false)
+  assert.equal(isSubsequence('abc', 'cba'), false)
+})
+
+test('fuzzy matching puts exact hits before subsequence hits, newest first', () => {
+  // 'bt-two'(4) 与 'bt-one'(1) 精确命中在前，'beta-two'(3) 子序列命中在后。
+  assert.deepEqual(fuzzyMatchesOf(['alpha', 'bt-one', 'other', 'beta-two', 'bt-two'], 'bt'), [4, 1, 3])
+  assert.deepEqual(fuzzyMatchesOf(['alpha', 'beta-two'], 'absent'), [])
+  assert.deepEqual(fuzzyMatchesOf(['a', 'b', 'a'], ''), [2, 1])
+})
+
+test('formats relative ages like Claude Code', () => {
+  const now = 1_000_000_000_000
+  assert.deepEqual(relativeAgeOf(now - 30_000, now), { value: 0, unit: 'now' })
+  assert.deepEqual(relativeAgeOf(now - 5 * 60_000, now), { value: 5, unit: 'min' })
+  assert.deepEqual(relativeAgeOf(now - 3 * 3_600_000, now), { value: 3, unit: 'hour' })
+  assert.deepEqual(relativeAgeOf(now - 2 * 86_400_000, now), { value: 2, unit: 'day' })
+  assert.equal(relativeAgeOf(now - 40 * 86_400_000, now), null)
+  assert.equal(relativeAgeOf(0, now), null)
+  assert.equal(relativeAgeOf(now + 10_000, now), null)
 })

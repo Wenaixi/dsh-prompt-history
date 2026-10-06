@@ -14,11 +14,12 @@
  * (role=listbox inside the composer card) is open, the history listener
  * declines and the input trigger pipeline owns the keys.
  *
- * Double Escape follows the same split as Claude Code's text input: with a
- * non-empty draft the first Escape hints "Esc again to clear" and passes
- * through, the second one saves the draft to history and clears the input
- * (caret back to 0); with an empty draft the double press opens the history
- * list panel instead (historyGesture).
+ * Double Escape (toggleable): with a non-empty draft the first Escape hints
+ * "Esc again to clear" and passes through, the second one saves the draft to
+ * history and clears the input (caret back to 0); with an empty draft the
+ * double press opens the history list panel. When the doubleEsc setting is
+ * off, Escape is never consumed by this plugin. Ctrl+R is NOT bound anymore —
+ * the browser keeps its native refresh.
  *
  * Right-click paste (terminal-style, like Linux): a right-click on the composer
  * textarea pastes the clipboard directly — no context menu. Paste runs the
@@ -55,8 +56,18 @@ import { getPrefs } from './prefs.ts'
 import {
   flashCopied, hideHistoryPanel, hideSelectionToolbar, showHistoryPanel, showSelectionToolbar,
 } from './feedback.ts'
-import { atStep, downStep, isDoubleEscape, matchesOf, nextIndex, upStep } from './history-model.ts'
+import { atStep, clampIndex, downStep, fuzzyMatchesOf, isDoubleEscape, matchesOf, upStep } from './history-model.ts'
 import { T } from './i18n.ts'
+import { relativeAgeOf } from './history-model.ts'
+
+/** 相对时间文案：短格式（5m / 3h / 2d），对齐终端紧凑风格。 */
+function relativeAgeText(time: number, now: number): string | null {
+  const age = relativeAgeOf(time, now)
+  if (age === null) return null
+  if (age.unit === 'now') return T('history.relative.now')
+  const unit = age.unit === 'min' ? 'm' : age.unit === 'hour' ? 'h' : 'd'
+  return `${age.value}${unit}`
+}
 import { promptMessage, type PromptMessage } from './nodes.ts'
 import {
   COMPOSER_CARD, editorFocused, editorHost, editorSelectedText, editorSelectionOffsets,
@@ -65,6 +76,12 @@ import {
 
 /** Full props of the input-history entry: framework standard kit + owner share. */
 export type InputHistoryProps = PropsRuntime<'conversation.input.right'>
+
+/** One history entry: prompt text + the source event timestamp (0 = unknown). */
+interface HistoryEntry {
+  readonly text: string
+  readonly time: number
+}
 
 /** One browse-position snapshot; step 0 = showing the live draft (not browsing). */
 interface BrowseState {
@@ -148,8 +165,8 @@ export function InputHistory(props: InputHistoryProps) {
   )
   const removed = sessionHook?.((s) => s.removed) as boolean | undefined ?? false
 
-  /** Submitted prompt texts, oldest → newest (per session; append-only). */
-  const historyRef = useRef<string[]>([])
+  /** Submitted prompt entries, oldest → newest (per session; append-only). */
+  const historyRef = useRef<HistoryEntry[]>([])
   /** User-node seqs already folded into historyRef (append-once dedup). */
   const seenRef = useRef<Set<number>>(new Set())
   const browseRef = useRef<BrowseState>(RESET_BROWSE)
@@ -163,20 +180,32 @@ export function InputHistory(props: InputHistoryProps) {
   // in localStorage (capped), survives reloads and session switches, and is
   // deduplicated against the whole ring instead of only consecutive entries.
   const RING_KEY = 'dsh-prompt-history.global'
-  const RING_CAP = 200
-  const loadRing = (): string[] => {
+  const loadRing = (): HistoryEntry[] => {
     try {
       const raw = localStorage.getItem(RING_KEY)
       if (raw === null) return []
       const parsed = JSON.parse(raw) as unknown
-      return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : []
+      if (!Array.isArray(parsed)) return []
+      return parsed.map((item): HistoryEntry | null => {
+        // 兼容旧 ring：纯字符串条目视为 time=0（不显示相对时间）。
+        if (typeof item === 'string' && item !== '') return { text: item, time: 0 }
+        if (item !== null && typeof item === 'object') {
+          const obj = item as { text?: unknown; time?: unknown }
+          if (typeof obj.text === 'string' && obj.text !== '') {
+            const time = typeof obj.time === 'number' && Number.isFinite(obj.time) ? obj.time : 0
+            return { text: obj.text, time }
+          }
+        }
+        return null
+      }).filter((entry): entry is HistoryEntry => entry !== null)
     } catch {
       return []
     }
   }
-  const saveRing = (history: readonly string[]): void => {
+  const saveRing = (history: readonly HistoryEntry[]): void => {
     try {
-      localStorage.setItem(RING_KEY, JSON.stringify(history.slice(-RING_CAP)))
+      const cap = getPrefs().maxHistoryItems
+      localStorage.setItem(RING_KEY, JSON.stringify(history.slice(-cap)))
     } catch { /* storage unavailable */ }
   }
 
@@ -204,20 +233,27 @@ export function InputHistory(props: InputHistoryProps) {
 
   // Fold newly arrived user messages into the history (window slides; the
   // append-only list survives it). With global history, dedup against the
-  // whole ring and persist it after every append.
+  // whole ring and persist it after every append. The ring is capped by
+  // maxHistoryItems.
   useEffect(() => {
     const seen = seenRef.current
     const history = historyRef.current
-    const globalOn = getPrefs().globalHistory
+    const prefs = getPrefs()
+    const globalOn = prefs.globalHistory
+    const cap = prefs.maxHistoryItems
     for (const message of messages) {
       if (seen.has(message.seq)) continue
       seen.add(message.seq)
       if (message.text === null) continue
-      if (globalOn ? !history.includes(message.text) : history[history.length - 1] !== message.text) {
-        history.push(message.text)
+      if (globalOn
+        ? !history.some((entry) => entry.text === message.text)
+        : history[history.length - 1]?.text !== message.text) {
+        history.push({ text: message.text, time: message.time })
       }
     }
-    if (globalOn) saveRing(historyRef.current)
+    if (history.length > cap) history.splice(0, history.length - cap)
+    if (globalOn) saveRing(history)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages])
 
   // Any draft change that is not our own history write ends the browse
@@ -246,17 +282,26 @@ export function InputHistory(props: InputHistoryProps) {
   //
   // 查询词取自输入框本身（草稿），而不是把按键一个一个攒起来：中文输入法组字
   // 时浏览器只发 composition 事件，攒按键永远攒不到汉字。
-  /** 把当前命中与高亮刷进浮层。 */
+  /** 把当前命中与高亮刷进浮层（含相对时间、模糊过滤、宽屏预览）。 */
   const paintPicker = (): void => {
     const picker = pickerRef.current
     if (picker === null) return
+    const prefs = getPrefs()
     const history = historyRef.current
-    const hits = matchesOf(history, picker.query)
-    const highlight = nextIndex(picker.highlight, 0, hits.length)
+    const hits = (prefs.fuzzyMatch ? fuzzyMatchesOf : matchesOf)(
+      history.map((entry) => entry.text),
+      picker.query,
+    )
+    const highlight = clampIndex(picker.highlight, 0, hits.length)
     pickerRef.current = { ...picker, highlight }
+    const now = Date.now()
+    const entries = hits.map((index) => history[index])
     showHistoryPanel(
       {
-        texts: hits.map((index) => history[index] ?? ''),
+        texts: entries.map((entry) => entry?.text ?? ''),
+        ages: prefs.relativeTime
+          ? entries.map((entry) => relativeAgeText(entry?.time ?? 0, now))
+          : entries.map(() => null),
         highlight,
         query: picker.query,
         shown: hits.length,
@@ -282,11 +327,15 @@ export function InputHistory(props: InputHistoryProps) {
   const acceptPicker = (): void => {
     const picker = pickerRef.current
     if (picker === null) return
+    const prefs = getPrefs()
     const history = historyRef.current
-    const hits = matchesOf(history, picker.query)
+    const hits = (prefs.fuzzyMatch ? fuzzyMatchesOf : matchesOf)(
+      history.map((entry) => entry.text),
+      picker.query,
+    )
     const at = picker.highlight >= 0 && picker.highlight < hits.length ? picker.highlight : hits.length - 1
     const index = hits[at]
-    const text = index === undefined ? undefined : history[index]
+    const text = index === undefined ? undefined : history[index]?.text
     closePicker()
     if (text === undefined || text === '') return
     liveRef.current.inputActions.setDraft(text)
@@ -321,11 +370,16 @@ export function InputHistory(props: InputHistoryProps) {
   const moveHighlight = (where: 'older' | 'newer' | 'newest' | 'oldest'): void => {
     const picker = pickerRef.current
     if (picker === null) return
-    const total = matchesOf(historyRef.current, picker.query).length
+    const prefs = getPrefs()
+    const history = historyRef.current
+    const total = (prefs.fuzzyMatch ? fuzzyMatchesOf : matchesOf)(
+      history.map((entry) => entry.text),
+      picker.query,
+    ).length
     if (total === 0) { paintPicker(); return }
     const next = where === 'newest' ? 0
       : where === 'oldest' ? total - 1
-        : nextIndex(picker.highlight, where === 'older' ? 1 : -1, total)
+        : clampIndex(picker.highlight, where === 'older' ? 1 : -1, total)
     pickerRef.current = { ...picker, highlight: next }
     paintPicker()
   }
@@ -350,7 +404,7 @@ export function InputHistory(props: InputHistoryProps) {
       // 历史功能被关掉：↑/↓ 与 Ctrl+R 与双击 Esc 全部交还宿主，不拦截任何键。
       if (!getPrefs().historyEnabled) return
       const history = historyRef.current
-      const recall = (index: number): string => history[index] ?? ''
+      const recall = (index: number): string => history[index]?.text ?? ''
       // 回填一条并摆好光标（↑ 放行首对齐 Claude Code，↓/恢复草稿放行尾）。
       // 只写草稿与 lastSet，浏览步数由调用方推进——browseRef 的 step 必须保持
       // 真实浏览位置，否则 ↑ 连按会被误清成「每次都是第一步」。
@@ -366,21 +420,15 @@ export function InputHistory(props: InputHistoryProps) {
         })
       }
 
-      // ---- history list panel: Ctrl+R or a double Escape opens it ----
+      // ---- history list panel: double Escape (empty draft) opens it ----
       //
       // 打开后焦点留在输入框：输入过滤、↑↓ 移动高亮、Enter/Tab 回填、Esc 关闭。
       // 宿主 Menu 的方向键行走依赖真实焦点搬进列表（lib/index.js 的 anchored 判断），
       // 与「焦点留输入框」互斥，所以浮层与键盘都自己实现。
       const prefs = getPrefs()
-      const ctrlR = e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'r'
 
       if (panelOpen) {
         // 面板已开：所有键都先归它，避免同一次按键既过滤又触发宿主行为。
-        if (ctrlR) {
-          e.preventDefault(); e.stopPropagation()
-          cancelPicker()
-          return
-        }
         if (e.key === 'Escape') {
           // 面板无条件先消费 Esc：否则关面板时会连带关掉别的浮层。
           e.preventDefault(); e.stopPropagation()
@@ -395,7 +443,7 @@ export function InputHistory(props: InputHistoryProps) {
         if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'Home' || e.key === 'End') {
           if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return
           e.preventDefault(); e.stopPropagation()
-          // 列表按「最新在上」渲染，所以 ↓ 是往下走更旧，↑ 是回到更新的那条。
+          // 列表按「最新在上」渲染（Claude Code 方向：最新贴底、↑ 走更旧）。
           moveHighlight(e.key === 'ArrowUp' ? 'newer' : e.key === 'ArrowDown' ? 'older' : e.key === 'Home' ? 'newest' : 'oldest')
           return
         }
@@ -404,20 +452,13 @@ export function InputHistory(props: InputHistoryProps) {
         return
       }
 
-      // ---- 关闭态：三个入口 ----
-      if (ctrlR) {
-        if (prefs.historyGesture === 'esc') return
-        if (history.length === 0) return
-        e.preventDefault(); e.stopPropagation()
-        hideSelectionToolbar()
-        openPicker()
-        return
-      }
-      // Esc：草稿非空时对齐 Claude Code 的「双击清空」——第一次提示并透传，
-      // 第二次把草稿存入历史后清空输入框；草稿为空时仍是打开历史列表的手势。
+      // ---- 关闭态：Esc（双击 Esc 受 doubleEsc 开关控制）----
+      // Ctrl+R 已移除：浏览器保留原生刷新，插件不再消费。
       // 任何非 Esc 的键都清零待定状态（Codex 的 primed 取消规则），
       // 否则上一次 Esc 会一直挂着等着配对。
       if (e.key !== 'Escape') {
+        lastEscapeRef.current = 0
+      } else if (!prefs.doubleEsc) {
         lastEscapeRef.current = 0
       } else {
         const now = performance.now()
@@ -431,9 +472,13 @@ export function InputHistory(props: InputHistoryProps) {
             if (live.draft.trim() !== '') {
               // 与提交时的去重规则一致（跨会话全环去重 / 相邻去重）。
               const globalOn = prefs.globalHistory
-              if (globalOn ? !history.includes(live.draft) : history[history.length - 1] !== live.draft) {
-                history.push(live.draft)
+              const cap = prefs.maxHistoryItems
+              if (globalOn
+                ? !history.some((entry) => entry.text === live.draft)
+                : history[history.length - 1]?.text !== live.draft) {
+                history.push({ text: live.draft, time: Date.now() })
               }
+              if (history.length > cap) history.splice(0, history.length - cap)
               if (globalOn) saveRing(history)
             }
             browseRef.current = RESET_BROWSE
@@ -449,8 +494,8 @@ export function InputHistory(props: InputHistoryProps) {
           // 第一次 Esc 只记时间戳、不消费：单按 Esc 仍要能关掉工具栏等既有浮层。
           lastEscapeRef.current = now
           flashCopied(null, T('esc.again'))
-        } else if (prefs.historyGesture !== 'ctrlR' && history.length > 0) {
-          // 空草稿：双击开历史列表面板（historyGesture 控制）。
+        } else if (history.length > 0) {
+          // 空草稿：双击开历史列表面板。
           if (doubled) {
             e.preventDefault(); e.stopPropagation()
             lastEscapeRef.current = 0

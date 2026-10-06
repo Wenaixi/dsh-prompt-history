@@ -4,6 +4,20 @@
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-10-06
+
+### 变更
+
+- **移除 Ctrl+R 手势**：历史列表入口仅剩「输入框为空时双击 Esc」；Ctrl+R 交还浏览器（恢复原生刷新）。删除 `historyGesture` 字段与相关文案。**已有用户升级需在 `cordis.patch.yml` 里删除 `historyGesture` 行**（同 tocVisible 先例，否则配置写入会被宿主以未知键拒绝）。
+- **双击 Esc 独立开关（默认开）**：新增 `doubleEsc`。开：非空草稿双击清空并存入历史、空草稿双击开历史列表；关：Esc 完全交还宿主。
+- **历史面板对齐 Claude Code**：行首相对时间（`relativeTime`，默认开，条目带源事件时间戳）；过滤支持包含 + 字符子序列模糊（`fuzzyMatch`，默认开，复刻 `isSubsequence`，exact 在前 fuzzy 在后）；高亮两端夹取不环绕（复刻 FuzzyPicker `clamp`）；宽窗口（≥1000px）右侧显示选中条目完整内容预览；列表最新在顶。
+- **历史条数上限可调**：新增 `maxHistoryItems`（默认 100，档位 50/100/200/500/1000），历史环与列表统一按此裁剪。
+
+### 修复
+
+- 历史条目从纯字符串改为 `{ text, time }`：跨会话 localStorage 环保留时间戳，旧纯字符串条目兼容显示为无相对时间。
+- 相对时间格式化为 `5m / 3h / 2d` 短格式（Claude Code `formatRelativeTimeAgo` 近似）。
+
 ## [2.1.0] - 2026-10-06
 
 ### 变更
@@ -243,7 +257,8 @@
 
 - 选中即复制（任意选中方式）。
 
-[Unreleased]: https://github.com/Wenaixi/dsh-prompt-history/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/Wenaixi/dsh-prompt-history/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/Wenaixi/dsh-prompt-history/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/Wenaixi/dsh-prompt-history/compare/v2.0.2...v2.1.0
 [2.0.2]: https://github.com/Wenaixi/dsh-prompt-history/compare/v2.0.1...v2.0.2
 [2.0.1]: https://github.com/Wenaixi/dsh-prompt-history/compare/v2.0.0...v2.0.1

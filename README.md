@@ -34,13 +34,13 @@
 
 1. **Claude Code-style arrow recall** — with the caret on the **first line** of the draft, **Up** walks back through prompts one by one from the most recent (caret parks at the start of each recalled line); at the oldest entry Up does nothing (no wrap-around). **Down** walks forward (recalled lines park the caret at the end) and, at the bottom edge, **restores the line you were typing before browsing began** (an empty draft restores an empty line). In multi-line drafts, Up/Down still move the caret normally unless it is on the first/last line.
 2. **Edit exits browsing** — editing the draft while browsing drops back to the live line.
-3. **Ctrl+R history list** — one key opens the full prompt-history overlay (newest first, duplicates keep only their latest occurrence). Focus stays in the input: typing filters by substring with live highlighting, **↑↓** move the highlight without touching the draft, Home/End jump to the edges, **Enter or Tab** fills the highlighted entry, **Esc** closes and restores the draft from before opening. The footer shows "matches / total" live.
-4. **Double Escape** (toggleable in Settings) — matches Claude Code semantics: with a **non-empty** draft the first Escape hints "Esc again to clear" and passes through, the second within 800 ms **saves the draft to history and clears the input** (the cleared text is then recallable with Up); with an **empty** draft a double Escape opens the history list. Three-way choice: **Ctrl+R only** / **Double Escape only** / **Both** (default).
+3. **History list via double Escape** — with an empty draft, pressing **Escape twice within 800 ms** opens the full prompt-history overlay (newest first, duplicates keep only their latest occurrence). Focus stays in the input: typing filters live with substring plus optional fuzzy subsequence matching (default on), **↑↓** move the highlight without touching the draft (clamped at the edges, no wrap), Home/End jump to the edges, **Enter or Tab** fills the highlighted entry, **Esc** closes and restores the draft from before opening. Each row shows a relative timestamp when the setting is on; on wide windows (≥1000px) the selected entry previews in full on the right. The footer shows "matches / total" live.
+4. **Double Escape** (toggleable in Settings, default on) — matches Claude Code semantics: with a **non-empty** draft the first Escape hints "Esc again to clear" and passes through, the second within 800 ms **saves the draft to history and clears the input** (the cleared text is then recallable with Up); with an **empty** draft a double Escape opens the history list. Turning the toggle off hands every Escape back to the Host.
 5. **Copy + quote (two modes, in Settings)** — any non-empty selection in the page — the composer input, chat messages, code blocks — is handled per the chosen mode:
    - **Toolbar** (default): Copy / Quote buttons appear above the selection — copy writes the clipboard only on click (no Win+V flooding); **Quote** inserts the FULL selected text as a clean `>`-prefixed markdown blockquote into the composer (rendered as a blockquote when sent).
    - **Auto** (terminal-style): copies the selection straight to the system clipboard on select.
 6. **Right-click pastes directly** — a right-click on the composer pastes the clipboard — no context menu, like a Linux terminal. Paste runs the same pipeline as Ctrl+V (images and reference chips behave identically), with a Clipboard API fallback when the execCommand path is blocked.
-7. **Cross-session history** (Settings toggle, default off) — keeps Up/Down history across sessions, stored in browser localStorage (cap 200), survives reloads and session switches.
+7. **Cross-session history** (Settings toggle, default off) — keeps Up/Down history across sessions, stored in browser localStorage (capped by the max-history setting), survives reloads and session switches.
 
 Pure UI behavior: no session events, no agent-loop changes, no model requests. Recalled or quoted text only enters the ordinary composer draft — it reaches the model only if *you* press Enter.
 
@@ -66,21 +66,24 @@ Open **Plugins → `@wenaixi/dsh-prompt-history` → configuration** (persisted 
 | Option | Default | Meaning |
 |---|---|---|
 | After selecting text | `Show a toolbar` | `Nothing` / `Show a toolbar` (writes the clipboard only on click) / `Copy immediately` (terminal-style) |
-| Open history list | `Both` | `Ctrl+R only` / `Double Escape only` / `Both` |
-| Up/Down history | On | Off hands ↑/↓, Ctrl+R and double Escape back to the Host |
-| Cross-session memory | Off | Up/Down history persists across sessions in browser local storage (cap 200) |
+| Up/Down history | On | Off hands every history behavior back to the Host |
+| Double Escape | On | Off hands every Escape back to the Host (no clear, no history list) |
+| Max history entries | `100` | How many prompts Up/Down and the history list remember (50 / 100 / 200 / 500 / 1000) |
+| Relative time | On | Show "5m / 3h / 2d" at the start of each history-list row |
+| Fuzzy match | On | History-list filtering also matches character subsequences (e.g. "dpl" finds "deploy now") |
+| Cross-session memory | Off | Up/Down history persists across sessions in browser local storage (capped by max history) |
 | Right-click paste | On | Off restores the browser's native context menu |
 
 ## Features
 
-- **History comes from the session's own message log**: reads the conversation snapshot's user nodes (`user` / `steering`) and appends as they land — strictly consistent with the transcript, persisted with the session, survives page reloads, and needs no configuration or extra storage. With "Cross-session memory" on it seeds from browser localStorage (cap 200) and dedupes against the whole ring on every append.
+- **History comes from the session's own message log**: reads the conversation snapshot's user nodes (`user` / `steering`) and appends as they land — strictly consistent with the transcript, persisted with the session, survives page reloads, and needs no configuration or extra storage. With "Cross-session memory" on it seeds from browser localStorage (capped by the max-history setting) and dedupes against the whole ring on every append.
 - **Consecutive duplicates collapse**; browse state resets on session switch.
 - Fully localized (中文 / English): settings, toolbar, feedback pills, history list all follow the DSH app locale.
-- The client bundle is ~13 KB gzipped and depends only on the official `@deepseek-ai/*` peer packages.
+- The client bundle is ~14 KB gzipped and depends only on the official `@deepseek-ai/*` peer packages.
 
 ## Known limitations
 
-- **Ctrl+R**: while the composer is focused, Ctrl+R opens the history list — it no longer reloads the page (click outside the input first to reload).
+- **Ctrl+R is not bound** — the browser keeps its native refresh; the history list opens via double Escape (or the Up/Down recall for one entry at a time).
 - Plain text only: image-only or chip-bearing messages are not recalled; recalled drafts are plain text.
 - Multi-line detection works on logical lines (Lexical line-breaks are `<br>`): pressing Up on a visually wrapped single line enters history instead of moving the caret up one visual row.
 

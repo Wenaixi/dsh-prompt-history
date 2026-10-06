@@ -8,7 +8,7 @@
 import { Button, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { PrefsCardSnapshot } from './card-controller.ts'
-import type { CopyMode, HistoryGesture, PluginPrefs } from './prefs-model.ts'
+import type { CopyMode, PluginPrefs } from './prefs-model.ts'
 import type { PromptHistoryKey } from './locales.ts'
 
 export type SettingsCardProps = PropsRuntime<'plugins.bundle.config'>
@@ -26,11 +26,13 @@ const COPY_MODES: readonly { value: CopyMode; label: PromptHistoryKey; hint: Pro
   { value: 'auto', label: 'copyMode.auto', hint: 'copyMode.auto.hint' },
 ]
 
-/** 打开历史列表的手势三选，按「最小惊讶 → 最大宽容」排列。 */
-const HISTORY_GESTURES: readonly { value: HistoryGesture; label: PromptHistoryKey; hint: PromptHistoryKey }[] = [
-  { value: 'ctrlR', label: 'historyGesture.ctrlR', hint: 'historyGesture.ctrlR.hint' },
-  { value: 'esc', label: 'historyGesture.esc', hint: 'historyGesture.esc.hint' },
-  { value: 'both', label: 'historyGesture.both', hint: 'historyGesture.both.hint' },
+/** 历史条数上限的档位，按从小到大排列。 */
+const MAX_HISTORY_OPTIONS: readonly { value: number; label: string }[] = [
+  { value: 50, label: '50' },
+  { value: 100, label: '100' },
+  { value: 200, label: '200' },
+  { value: 500, label: '500' },
+  { value: 1000, label: '1000' },
 ]
 
 /** 一个开关行：标题 + 说明 + 开关。标题在左，说明紧随其下，开关固定在右侧。 */
@@ -123,11 +125,6 @@ export function SettingsCardSlot(props: SettingsCardProps): JSX.Element | null {
     label: t(mode.label),
     hint: t(mode.hint),
   }))
-  const gestureOptions = HISTORY_GESTURES.map((gesture) => ({
-    value: gesture.value,
-    label: t(gesture.label),
-    hint: t(gesture.hint),
-  }))
   return (
     <div className="dsh-ph-settings">
       {locked ? <p className="dsh-ph-notice" role="status">{t('settings.readOnly')}</p> : null}
@@ -141,19 +138,40 @@ export function SettingsCardSlot(props: SettingsCardProps): JSX.Element | null {
           onChange={(next) => props.edit('historyEnabled', next)}
         />
         <ToggleRow
+          title={t('settings.row.doubleEsc')}
+          hint={t('settings.row.doubleEsc.hint')}
+          checked={value.doubleEsc}
+          disabled={locked}
+          onChange={(next) => props.edit('doubleEsc', next)}
+        />
+        <ChoiceRow
+          title={t('settings.row.maxHistory')}
+          hint={t('settings.row.maxHistory.hint')}
+          value={String(value.maxHistoryItems)}
+          options={MAX_HISTORY_OPTIONS.map((option) => ({ value: String(option.value), label: option.label, hint: '' }))}
+          disabled={locked}
+          onChange={(next) => props.edit('maxHistoryItems', Number(next))}
+        />
+        <ToggleRow
+          title={t('settings.row.relativeTime')}
+          hint={t('settings.row.relativeTime.hint')}
+          checked={value.relativeTime}
+          disabled={locked}
+          onChange={(next) => props.edit('relativeTime', next)}
+        />
+        <ToggleRow
+          title={t('settings.row.fuzzy')}
+          hint={t('settings.row.fuzzy.hint')}
+          checked={value.fuzzyMatch}
+          disabled={locked}
+          onChange={(next) => props.edit('fuzzyMatch', next)}
+        />
+        <ToggleRow
           title={t('settings.row.global')}
           hint={t('settings.row.global.hint')}
           checked={value.globalHistory}
           disabled={locked}
           onChange={(next) => props.edit('globalHistory', next)}
-        />
-        <ChoiceRow
-          title={t('settings.row.gesture')}
-          hint={t('settings.row.gesture.hint')}
-          value={value.historyGesture}
-          options={gestureOptions}
-          disabled={locked}
-          onChange={(next) => props.edit('historyGesture', next as HistoryGesture)}
         />
       </Group>
       <Group title={t('settings.group.copy')}>

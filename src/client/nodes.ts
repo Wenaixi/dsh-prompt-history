@@ -15,6 +15,8 @@ export interface PromptMessage {
   readonly seq: number
   /** Trimmed plain text of the message, or null when empty/unsupported. */
   readonly text: string | null
+  /** Unix epoch ms of the source event; 0 when unavailable (age hidden). */
+  readonly time: number
 }
 
 type NodeLike = {
@@ -23,6 +25,8 @@ type NodeLike = {
   anchorSeq?: unknown
   content?: unknown
   data?: unknown
+  time?: unknown
+  timestamp?: unknown
 }
 
 /** The node's ordering identity: anchorSeq (new), then seq (old), then data.seq. */
@@ -33,6 +37,18 @@ export function nodeSeq(node: NodeLike): number {
   }
   const data = node.data as { seq?: unknown } | undefined
   return typeof data?.seq === 'number' && Number.isFinite(data.seq) ? data.seq : 0
+}
+
+/**
+ * The node's source timestamp (Unix epoch ms): `time`, `data.time`,
+ * `data.timestamp`, `timestamp`; 0 when unavailable or non-finite.
+ */
+export function nodeTime(node: NodeLike): number {
+  const data = node.data as { time?: unknown; timestamp?: unknown } | undefined
+  for (const value of [node.time, data?.time, data?.timestamp, node.timestamp]) {
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value
+  }
+  return 0
 }
 
 /** The node's text content blocks (old `content` or new `data.content`). */
@@ -57,5 +73,5 @@ export function promptMessage(node: unknown): PromptMessage | null {
   }
   const trimmed = text.trim()
   if (trimmed === '') return null
-  return { kind: n.kind as string, seq: nodeSeq(n), text: trimmed }
+  return { kind: n.kind as string, seq: nodeSeq(n), text: trimmed, time: nodeTime(n) }
 }

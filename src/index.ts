@@ -22,8 +22,14 @@ export interface Config {
   rightClickPaste: boolean
   /** 上下键历史是否启用。 */
   historyEnabled: boolean
-  /** 打开历史列表的手势：ctrlR / esc / both。 */
-  historyGesture: 'ctrlR' | 'esc' | 'both'
+  /** 双击 Esc 是否启用（非空清空 / 空草稿开历史列表）。 */
+  doubleEsc: boolean
+  /** 历史环与列表的最大条数。 */
+  maxHistoryItems: number
+  /** 历史列表行首是否显示相对时间。 */
+  relativeTime: boolean
+  /** 历史列表过滤是否允许字符子序列模糊匹配。 */
+  fuzzyMatch: boolean
   /** 上下键历史是否跨会话保留。 */
   globalHistory: boolean
 }
@@ -39,7 +45,10 @@ export const Config = z.object({
   copyMode: z.union(['off', 'toolbar', 'auto']).default('toolbar').volatile(),
   rightClickPaste: z.boolean().default(true).volatile(),
   historyEnabled: z.boolean().default(true).volatile(),
-  historyGesture: z.union(['ctrlR', 'esc', 'both']).default('both').volatile(),
+  doubleEsc: z.boolean().default(true).volatile(),
+  maxHistoryItems: z.natural().min(10).max(1000).default(100).volatile(),
+  relativeTime: z.boolean().default(true).volatile(),
+  fuzzyMatch: z.boolean().default(true).volatile(),
   globalHistory: z.boolean().default(false).volatile(),
 })
 

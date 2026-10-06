@@ -114,14 +114,18 @@ export function showSelectionToolbar(rect: DOMRect, onQuote?: () => void): void 
 }
 
 
-// ---- history list panel (Ctrl+R / double Escape) ----
+// ---- history list panel (double Escape / Ctrl+R before 2.2) ----
 
 const HISTORY_CLASS = 'dsh-ph-history'
 const HISTORY_MAX_ROWS = 200
+/** 相对时间列宽（右对齐，Claude Code AGE_WIDTH=8）。 */
+const AGE_WIDTH = 8
 
 interface HistoryPanelView {
   /** 命中条目的文本，按展示顺序排列。 */
   readonly texts: readonly string[]
+  /** 每行的相对时间文案；null 表示不显示（时间未知或设置关闭）。 */
+  readonly ages: readonly (string | null)[]
   /** 高亮项在 texts 里的下标；-1 表示没有高亮。 */
   readonly highlight: number
   /** 过滤词；空串表示未过滤。 */
@@ -206,21 +210,26 @@ function paintHighlighted(host: HTMLElement, text: string, query: string): void 
   host.append(text.slice(cursor))
 }
 
-const ROW_CSS = 'display:block;width:100%;text-align:left;padding:7px 12px;border:0;' +
-  'background:transparent;cursor:pointer;font:13px/1.45 inherit;' +
-  'color:var(--dsw-alias-label-secondary);white-space:nowrap;overflow:hidden;' +
-  'text-overflow:ellipsis;border-left:2px solid transparent;'
+const ROW_CSS = 'display:flex;align-items:baseline;gap:8px;width:100%;text-align:left;' +
+  'padding:7px 12px;border:0;background:transparent;cursor:pointer;font:13px/1.45 inherit;' +
+  'color:var(--dsw-alias-label-secondary);border-left:2px solid transparent;'
 
 const ROW_ACTIVE_CSS = 'background:var(--dsw-specific-menu-hover);color:var(--dsw-alias-label-primary);' +
   'border-left-color:var(--dsw-static-blue-500);'
+
+const AGE_CSS = 'flex:none;font:11px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;' +
+  `min-width:${AGE_WIDTH}ch;text-align:right;color:var(--dsw-alias-label-tertiary);`
+
+const ROW_TEXT_CSS = 'min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'
 
 /**
  * Open the history list above the composer card.
  *
  * 只做渲染与鼠标交互：键盘（过滤、移动、回填、关闭）在 InputHistory.tsx 里处理，
  * 因为焦点必须留在输入框，宿主 Menu 的方向键行走（依赖真实焦点）用不上。
+ * 列表按最新在顶渲染（Claude Code direction='up' 的视觉反向近似：最新贴输入框）。
  *
- * @param view - 命中文本、高亮位置与计数。
+ * @param view - 命中文本、相对时间、高亮位置与计数。
  * @param refs - 提交与关闭回调。
  */
 export function showHistoryPanel(view: HistoryPanelView, refs: HistoryPanelRefs): void {
@@ -258,7 +267,17 @@ export function showHistoryPanel(view: HistoryPanelView, refs: HistoryPanelRefs)
     row.setAttribute('aria-selected', i === view.highlight ? 'true' : 'false')
     row.style.cssText = ROW_CSS + (i === view.highlight ? ROW_ACTIVE_CSS : '')
     row.title = text
-    paintHighlighted(row, text, view.query)
+    const age = view.ages[i]
+    if (age !== null && age !== undefined && age !== '') {
+      const ageEl = document.createElement('span')
+      ageEl.style.cssText = AGE_CSS
+      ageEl.textContent = age
+      row.appendChild(ageEl)
+    }
+    const textEl = document.createElement('span')
+    textEl.style.cssText = ROW_TEXT_CSS
+    paintHighlighted(textEl, text, view.query)
+    row.appendChild(textEl)
     row.addEventListener('click', () => { historyRefs?.onPick(i) })
     list.appendChild(row)
   })
