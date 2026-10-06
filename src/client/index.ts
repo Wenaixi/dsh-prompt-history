@@ -20,6 +20,7 @@ import { SettingsCardController } from './card-controller.ts'
 import { NS, en, zh } from './locales.ts'
 import { setTranslator } from './i18n.ts'
 import { bindHostForm } from './prefs.ts'
+import { hasInlineSlash } from './claim-guard.ts'
 
 /** 宿主 Settings 命名空间：等于 Loader 条目 id，与 cordis.patch.yml 的行 id 一致。 */
 const HOST_NS = NS
@@ -56,6 +57,14 @@ const SETTINGS_CSS = [
   '.dsh-ph-foot{display:flex;align-items:center;justify-content:flex-end;gap:16px;margin-top:16px;}',
 ].join('')
 
+/** 宿主每会话一个触发控制器；这里只用到补全管线的 track 入口。 */
+interface TriggerPatch {
+  track: (draft: string, caret: number, guard: { tier: string } | null | undefined, draftRev: number) => void
+}
+
+/** 已补装 track 补丁的控制器，防止同一会话重复包装。 */
+const patched = new WeakSet<object>()
+
 export function apply(ctx: ClientContext): void {
   const style = document.createElement('style')
   style.dataset.pluginCss = 'dsh-ph-settings'
@@ -86,30 +95,31 @@ export function apply(ctx: ClientContext): void {
     }), 'dsh-prompt-history: plugin config card')
   })
 
-  // 修复宿主缺陷：解除 claimed 状态下对行内斜杠技能补全（如 /plan /dsh-plugin-dev）的强力压制。
-  // 宿主底层 detectTrigger 在 guard.tier === 'claimed' 时硬编码跳过所有 '/'，导致前导命令参数里的技能无法弹出补全；
-  // 此处在控制器 track 时拦截，当处于 claimed 但光标处检测到行内斜杠触发时，将 tier 放宽为 plain。
+  // 认领态行内斜杠补全：宿主 detectTrigger 在 guard.tier === "claimed" 时硬跳过所有
+  // "/"（前导命令已认领草稿，后续斜杠一律按参数文本处理）。这让 "/plan /skill" 这类
+  // 命令参数里的技能补全静默失效。这里把守卫放宽：光标位于行内斜杠时降级为 plain，
+  // 让宿主补全管线照常跑。前导位置（"/plan " 本身）不受影响，仍走原认领语义。
+  // ponytail: 依赖 sessionOf().track 这条内部路径，宿主重构触发控制器时静默失效
+  // （退回裸宿主行为，不报错）；升级 DSH 后重跑隔离实例的 "/plan /ds" 验收即可确认。
   ctx.inject(['inputTriggers'], (raw) => {
-    const service = (raw as unknown as Record<string, unknown>).inputTriggers as {
-      sessionOf?: (actx: unknown) => { track?: (draft: string, caret: number, guard: { tier: string } | null | undefined, draftRev: number) => void; __dshPhUnsuppressed?: boolean }
-    } | undefined
-    if (typeof service?.sessionOf !== 'function') return
-    const rawSessionOf = service.sessionOf.bind(service)
-    service.sessionOf = (actx: unknown) => {
-      const controller = rawSessionOf(actx)
-      if (controller && typeof controller.track === 'function' && !controller.__dshPhUnsuppressed) {
-        controller.__dshPhUnsuppressed = true
-        const rawTrack = controller.track.bind(controller)
-        controller.track = (draft: string, caret: number, guard: { tier: string } | null | undefined, draftRev: number) => {
-          if (guard?.tier === 'claimed') {
-            const before = draft.slice(0, caret)
-            const lastSpace = before.lastIndexOf(' ')
-            if (lastSpace !== -1 && before.slice(lastSpace).includes('/')) {
-              guard = { ...guard, tier: 'plain' }
-            }
-          }
-          return rawTrack(draft, caret, guard, draftRev)
+    const service = (raw as unknown as Record<string, unknown>).inputTriggers as
+      | { sessionOf?: (scope: unknown) => TriggerPatch | undefined }
+      | undefined
+    const resolve = service?.sessionOf
+    if (typeof resolve !== 'function') return
+    // 包一层 sessionOf：每个会话控制器首次取到时补装 track 补丁。
+    service!.sessionOf = (scope: unknown): TriggerPatch | undefined => {
+      const controller = resolve.call(service, scope)
+      if (controller === undefined || typeof controller.track !== 'function') return controller
+      if (patched.has(controller)) return controller
+      patched.add(controller)
+      const hostTrack = controller.track.bind(controller)
+      controller.track = (draft, caret, guard, draftRev) => {
+        // 行内斜杠（光标前最近一个空白之后有 "/"）才放宽；无斜杠的前导认领照旧。
+        if (guard?.tier === 'claimed' && hasInlineSlash(draft, caret)) {
+          return hostTrack(draft, caret, { ...guard, tier: 'plain' }, draftRev)
         }
+        return hostTrack(draft, caret, guard, draftRev)
       }
       return controller
     }
