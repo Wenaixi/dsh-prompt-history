@@ -1,6 +1,6 @@
 {
   "name": "@wenaixi/dsh-prompt-history",
-  "version": "2.2.1",
+  "version": "2.2.2",
   "description": "Terminal-style prompt history, selection copy/quote and right-click paste for the DSH composer (zh/en).",
   "keywords": [
     "dsh",

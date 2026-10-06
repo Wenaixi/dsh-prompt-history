@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+## [2.2.2] - 2026-10-06
+
+### 修复
+
+- **解除前导命令认领态下行内斜杠技能补全压制**：宿主命令系统（如 `/plan`）在空格认领后进入 `claimed` 阶段，其底层 `detectTrigger` 硬编码规定 `if (guard.tier === "claimed") continue`，将后续所有斜杠触发直接抹杀，导致 `/plan /dsh-plugin-dev` 或 `/plan /browser-harness` 无法弹出补全菜单。本插件在客户端动态注入 `inputTriggers` 服务并包装控制器 `track` 方法，当处于 `claimed` 但光标处检测到行内斜杠触发时，自动将 `tier` 放宽为 `plain`，彻底恢复行内技能补全弹窗能力。
+- **建议菜单让位选择器增强**：扩展 `OPEN_MENU` 为 `[role="listbox"], [data-trigger-menu]`，在宿主菜单骨架屏加载窗口期同样 100% 让位，杜绝按键冲突。
+
 ## [2.2.1] - 2026-10-06
 
 ### 修复
