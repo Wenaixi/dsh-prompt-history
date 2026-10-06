@@ -109,7 +109,7 @@ interface PickerState {
 const RESET_BROWSE: BrowseState = { step: 0, saved: '', lastSet: null }
 
 /** The suggestion menu (slash/at) renders a listbox inside the card while open. */
-const OPEN_MENU = '[role="listbox"]'
+const OPEN_MENU = '[role="listbox"], [data-trigger-menu]'
 
 /** DSH ≥ 0.1.2 moved the conversation nodes off the session snapshot onto the
  * chat view (useChat); the lifecycle fields (removed) stay on useSession.

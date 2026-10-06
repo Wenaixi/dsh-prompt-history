@@ -155,6 +155,8 @@ npm pack --dry-run                                        # 产物清单核对�
 
 ## 决策记录
 
+- **2026-10-06 修复认领命令下行内斜杠技能补全被压制（Slash Completion Unsuppression）**：排查发现宿主命令系统（如 `/plan`）在空格认领后，输入框进入 `claimed` 阶段（`guard.tier = "claimed"`）。宿主底层 `detectTrigger` 硬编码规定 `if (guard.tier === "claimed") continue`，将后续所有斜杠触发直接抹杀，导致 `/plan /dsh-plugin-dev` 或 `/plan /browser-harness` 无法弹出技能补全。本插件在客户端动态注入 `inputTriggers` 服务，包装 `sessionOf` 控制器的 `track` 方法，当处于 `claimed` 但光标前检测到行内斜杠触发时，自动将 `tier` 放宽为 `plain`，彻底恢复行内技能补全弹窗能力。同时升级建议菜单让位选择器为 `[role="listbox"], [data-trigger-menu]`，杜绝骨架屏窗口期按键抢占。真机验收全场景 100% 通过。
+
 - **2026-10-06 复刻 Claude Code 上下键历史与双击 Esc 语义**：↑/↓ 从 bash 前缀搜索改为 Claude Code 的顺序浏览（↑ 从最新一条逐条回退、到底不环绕；↑ 回填光标签行首、↓/恢复草稿光标行尾；多行输入只在光标处于首/末行时才接管方向键）。双击 Esc 改为草稿非空时第一次提示、第二次存入历史后清空（空草稿仍是开历史列表）。实现上发现两个真实宿主细节：Lexical 多行换行是 `<br>` 而非 `\n`（`textContent` 挤成一行，行号必须数 `<br>`），且空输入框有占位 `<br>` 不能算第二行。浏览器验收 23 项全绿（隔离 profile prompt-history-e2e-v3 + 本机 Chrome + CDP）。
 - **2026-10-06 去掉保存按钮，设置改动自动保存**：配置卡从「官方 SettingsForm 外壳 + staged 草稿 + 一次保存」改为自绘外壳 + 操作即写（开关/单选/恢复默认点击即 `ConfigForm.mutate`，无草稿无保存按钮）。删除草稿机、冲突栅栏与 `save/saving/conflict/draftHint` 文案键；失败时复用 `settings.saveFailed` 提示，宿主 `recover` 自动回落到真值。连点由宿主写入队列串行处理。
 - **2026-10-06 设置界面迁移官方 SettingsForm**：配置卡从「手写外壳 + 逐项即时写」改为官方外壳 + staged 草稿 + 一次保存 + revision 冲突栅栏。顺带修掉两个拦路 bug——tsdown 产物注册 id 与包名不一致（2.0.1 客户端从未加载成功）、插槽 key 未用包名（配置区不渲染）。发布 v2.0.2。（注：该「一次保存」语义在当日稍后被上一条决策撤销，改为自动保存。）

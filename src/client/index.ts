@@ -85,4 +85,33 @@ export function apply(ctx: ClientContext): void {
       )
     }), 'dsh-prompt-history: plugin config card')
   })
+
+  // 修复宿主缺陷：解除 claimed 状态下对行内斜杠技能补全（如 /plan /dsh-plugin-dev）的强力压制。
+  // 宿主底层 detectTrigger 在 guard.tier === 'claimed' 时硬编码跳过所有 '/'，导致前导命令参数里的技能无法弹出补全；
+  // 此处在控制器 track 时拦截，当处于 claimed 但光标处检测到行内斜杠触发时，将 tier 放宽为 plain。
+  ctx.inject(['inputTriggers'], (raw) => {
+    const service = (raw as unknown as Record<string, unknown>).inputTriggers as {
+      sessionOf?: (actx: unknown) => { track?: (draft: string, caret: number, guard: { tier: string } | null | undefined, draftRev: number) => void; __dshPhUnsuppressed?: boolean }
+    } | undefined
+    if (typeof service?.sessionOf !== 'function') return
+    const rawSessionOf = service.sessionOf.bind(service)
+    service.sessionOf = (actx: unknown) => {
+      const controller = rawSessionOf(actx)
+      if (controller && typeof controller.track === 'function' && !controller.__dshPhUnsuppressed) {
+        controller.__dshPhUnsuppressed = true
+        const rawTrack = controller.track.bind(controller)
+        controller.track = (draft: string, caret: number, guard: { tier: string } | null | undefined, draftRev: number) => {
+          if (guard?.tier === 'claimed') {
+            const before = draft.slice(0, caret)
+            const lastSpace = before.lastIndexOf(' ')
+            if (lastSpace !== -1 && before.slice(lastSpace).includes('/')) {
+              guard = { ...guard, tier: 'plain' }
+            }
+          }
+          return rawTrack(draft, caret, guard, draftRev)
+        }
+      }
+      return controller
+    }
+  })
 }
