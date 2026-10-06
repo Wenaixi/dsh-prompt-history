@@ -43,14 +43,19 @@
 - 配置卡组件只收 slot props 与 inject 注入的表单，不接触 ctx。
 - 订阅表单快照必须用箭头函数包一层：把 `form.getSnapshot` 直接交给 useSyncExternalStore 会丢 this，表单内部读 this.store 抛 TypeError，配置区整块渲染失败。
 
-## 设置界面规范
+## 设置界面规范（官方 SettingsForm 体系）
 
+- 外壳是官方 `SettingsForm`（primitives）：不可用提示、只读横幅、保存失败提示、Save/Saving 按钮、离开即丢弃草稿全部由它承担。
+- 保存语义是 staged 草稿 + 一次保存：编辑只改草稿，Save 才一次 mutate 写宿主；不再逐项即时写。
+- 模型走自写 `SettingsCardController`（card-controller.ts），仿官方 settings-subagent：官方 `SettingsFormModel` 只服务文本/数字字段，开关/单选不进它。
+- 控制器用快照 `revision` 做冲突栅栏：草稿期间文档被别处改动且草稿未过期 → 冲突标记（invalid 禁用 Save）；保存回读逐字段比对确认落盘；代际计数抑制卸载后的迟到回执。
 - 一行标题 + 一行说明 + 右侧控件；说明承载细节，长句不塞进控件标签。
 - 单选用「可点面板块 + role=radio」，不用 SegmentedControl：说明文字要跟着每个选项走。
 - 开关用宿主 `Switch`；行之间只用 0.5px 分隔线，不套第二层卡片。
 - 颜色、圆角、间距一律走 `--dsw-*` token，浅色深色自动跟随。
 - 不可关闭的能力用「说明行 + 徽标」呈现，不画一个永远不动的开关。
 - 文案 zh/en 键集合由 `Record<keyof typeof zh, string>` 强制对齐。
+- `plugins.bundle.config` 的插槽 key 必须等于包名 `@wenaixi/dsh-prompt-history`（plugin-manager 用 `entry.options.key` 与 `pkg.name` 比对决定是否渲染配置区）；Settings 命名空间则是 Loader 行 id `dsh-prompt-history`，两者不是一回事。
 
 ## 插件描述本地化
 

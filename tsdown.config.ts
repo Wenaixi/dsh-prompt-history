@@ -6,8 +6,14 @@
  */
 import type { UserConfig } from 'tsdown'
 
-/** The plugin id stamped into the __ModuleLoader__.load handoff. */
-const ID = 'dsh-prompt-history'
+/**
+ * The plugin id stamped into the __ModuleLoader__.load handoff. Must equal the
+ * package name exactly: client-modules resolves each loader row's entry id from
+ * the row's module specifier, and a combo batch fails with "loaded without
+ * registering <id>" when the registered id differs (2.0.1 renamed the package
+ * to @wenaixi/dsh-prompt-history but kept the old id — clients never loaded).
+ */
+const ID = '@wenaixi/dsh-prompt-history'
 
 /** Platform-module externals answered by the browser module table at runtime. */
 const EXTERNALS = [

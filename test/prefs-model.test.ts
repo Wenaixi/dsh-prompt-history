@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  DEFAULT_PREFS, normalizePrefs, parseLegacyPrefs, planLegacyMigration, prefsOps,
+  DEFAULT_PREFS, normalizePrefs, parseLegacyPrefs, planLegacyMigration, prefsOps, draftDiffOps, prefsEqual,
   type PluginPrefs,
 } from '../src/client/prefs-model.ts'
 
@@ -105,4 +105,24 @@ test('refuses to migrate unparsable or non-object legacy payloads', () => {
   assert.equal(planLegacyMigration(undefined, '{'), undefined)
   assert.equal(planLegacyMigration(undefined, JSON.stringify('toolbar')), undefined)
   assert.equal(planLegacyMigration(undefined, JSON.stringify([])), undefined)
+})
+
+test('writes only the changed fields between draft and current', () => {
+  const current: PluginPrefs = { copyMode: 'toolbar', rightClickPaste: true, historyEnabled: true, historyGesture: 'both', globalHistory: false }
+  const draft: PluginPrefs = { ...current, copyMode: 'auto', historyEnabled: false }
+  assert.deepEqual(draftDiffOps(draft, current), [
+    { op: 'set', path: ['copyMode'], value: 'auto' },
+    { op: 'set', path: ['historyEnabled'], value: false },
+  ])
+})
+
+test('draftDiffOps returns nothing when the draft equals the current value', () => {
+  const current: PluginPrefs = { copyMode: 'off', rightClickPaste: false, historyEnabled: false, historyGesture: 'esc', globalHistory: true }
+  assert.deepEqual(draftDiffOps(current, current), [])
+})
+
+test('prefsEqual compares every field', () => {
+  const a: PluginPrefs = { copyMode: 'toolbar', rightClickPaste: true, historyEnabled: true, historyGesture: 'both', globalHistory: false }
+  assert.equal(prefsEqual(a, { ...a }), true)
+  assert.equal(prefsEqual(a, { ...a, globalHistory: true }), false)
 })

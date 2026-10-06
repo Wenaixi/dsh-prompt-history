@@ -16,21 +16,24 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { InputHistory } from './InputHistory.tsx'
 import { SettingsCardSlot } from './SettingsCard.tsx'
+import { SettingsCardController } from './card-controller.ts'
 import { NS, en, zh } from './locales.ts'
 import { setTranslator } from './i18n.ts'
 import { bindHostForm } from './prefs.ts'
 
 /** 宿主 Settings 命名空间：等于 Loader 条目 id，与 cordis.patch.yml 的行 id 一致。 */
 const HOST_NS = NS
+/** 插槽匹配键：plugins.bundle.config 按包名渲染（plugin-manager 的 configured 判定）。 */
+const PKG = '@wenaixi/dsh-prompt-history'
 
 /** 客户端必需服务：slot 注册与文案。configForms 是可选的，见 apply。 */
 export const inject = ['slots', 'locale']
 
 const SETTINGS_CSS = [
-  // 宿主已经画好 section 容器与排版节奏，这里只负责行与行之间的节奏；
+  // 官方 SettingsForm 承担外壳、保存与状态提示；这里只负责行内布局与单选块。
   // 颜色、圆角、间距一律走宿主 token，浅色/深色自动跟随。
-  '.dsh-ph-card{display:flex;flex-direction:column;gap:20px;max-width:560px;}',
-  '.dsh-ph-group{display:flex;flex-direction:column;gap:4px;}',
+  '.dsh-ph-group{display:flex;flex-direction:column;gap:4px;margin-top:16px;}',
+  '.dsh-ph-group:first-child{margin-top:0;}',
   '.dsh-ph-groupTitle{margin:0;font-size:13px;font-weight:500;line-height:20px;color:var(--dsw-alias-label-secondary);}',
   '.dsh-ph-groupBody{display:flex;flex-direction:column;}',
   '.dsh-ph-row{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;padding:14px 0;border-bottom:.5px solid var(--dsw-alias-border-l2);}',
@@ -41,7 +44,6 @@ const SETTINGS_CSS = [
   '.dsh-ph-rowTitle{margin:0;font-size:14px;font-weight:500;line-height:20px;color:var(--dsw-alias-label-primary);}',
   '.dsh-ph-rowHint{margin:0;font-size:12.5px;line-height:18px;color:var(--dsw-alias-label-tertiary);}',
   '.dsh-ph-rowControl{flex:none;margin-top:2px;}',
-  '.dsh-ph-rowBadge{flex:none;margin-top:2px;padding:2px 8px;border-radius:var(--dsw-radius-sm);background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-tertiary);font-size:11.5px;line-height:16px;}',
   '.dsh-ph-options{display:grid;grid-template-columns:1fr 1fr;gap:8px;}',
   '.dsh-ph-option{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border:.5px solid var(--dsw-alias-border-l3);border-radius:var(--dsw-radius-lg);background:var(--dsw-alias-bg-layer-1);color:inherit;font:inherit;text-align:left;cursor:pointer;}',
   '.dsh-ph-option:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover);}',
@@ -49,8 +51,9 @@ const SETTINGS_CSS = [
   '.dsh-ph-option:disabled{opacity:.5;cursor:default;}',
   '.dsh-ph-optionTitle{font-size:13.5px;font-weight:500;line-height:20px;}',
   '.dsh-ph-optionHint{font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary);}',
-  '.dsh-ph-foot{display:flex;align-items:center;justify-content:space-between;gap:16px;}',
-  '.dsh-ph-footStatus{font-size:12px;line-height:18px;color:var(--dsw-alias-state-error-primary);}',
+  '.dsh-ph-foot{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:16px;}',
+  '.dsh-ph-footHint{font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary);}',
+  '.dsh-ph-conflict{color:var(--dsw-alias-state-error-primary);}',
 ].join('')
 
 export function apply(ctx: ClientContext): void {
@@ -73,8 +76,11 @@ export function apply(ctx: ClientContext): void {
       const form = forms.get<Record<string, unknown>>(HOST_NS)
       // 功能组件与设置卡共享同一份宿主快照，写入即时反映到输入行为。
       ctx.effect(() => bindHostForm(form), 'dsh-prompt-history: host preferences')
+      // 设置卡走官方 SettingsForm：控制器做 staged 草稿与一次保存。
+      const controller = new SettingsCardController(form)
+      ctx.effect(() => () => controller.dispose(), 'dsh-prompt-history: config card controller')
       return ctx.slots.register(
-        { name: 'plugins.bundle.config', key: 'dsh-prompt-history', locale: NS, inject: () => ({ hostForm: form }) },
+        { name: 'plugins.bundle.config', key: PKG, locale: NS, inject: () => controller.inject() },
         SettingsCardSlot,
       )
     }), 'dsh-prompt-history: plugin config card')

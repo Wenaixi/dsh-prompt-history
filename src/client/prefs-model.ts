@@ -103,6 +103,20 @@ export function prefsOps(prefs: PluginPrefs): PrefOp[] {
   return FIELDS.map((field) => ({ op: 'set' as const, path: [field], value: prefs[field] }))
 }
 
+/** 两份偏好是否逐字段完全相同。 */
+export function prefsEqual(a: PluginPrefs, b: PluginPrefs): boolean {
+  return FIELDS.every((field) => a[field] === b[field])
+}
+
+/**
+ * 草稿与当前值的差异写入操作：只写真正变化的字段，未变的字段不重申。
+ * 无差异时返回空数组，保存方据此直接跳过。
+ */
+export function draftDiffOps(draft: PluginPrefs, current: PluginPrefs): PrefOp[] {
+  return FIELDS.filter((field) => draft[field] !== current[field])
+    .map((field) => ({ op: 'set' as const, path: [field], value: draft[field] }))
+}
+
 /**
  * 决定是否执行一次性旧配置迁移。
  *
