@@ -459,7 +459,10 @@ export function InputHistory(props: InputHistoryProps) {
       if (e.key !== 'Escape') {
         lastEscapeRef.current = 0
       } else if (!prefs.doubleEsc) {
+        // 双击 Esc 关闭：Esc 完全交还宿主（不提示、
+        // 不消费）。宿主会自行关闭其浮层/菜单。
         lastEscapeRef.current = 0
+        return
       } else {
         const now = performance.now()
         const doubled = isDoubleEscape(lastEscapeRef.current, now)
