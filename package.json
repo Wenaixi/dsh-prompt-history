@@ -69,9 +69,7 @@
     "cordis.patch.yml",
     "CHANGELOG.md",
     "README.md",
-    "README.en.md",
-    "README.es.md",
-    "README.pt.md",
+    "README.zh.md",
     "locale/*.json",
     "LICENSE"
   ],
