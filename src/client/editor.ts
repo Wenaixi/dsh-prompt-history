@@ -108,6 +108,30 @@ export function editorSelectedText(host: HTMLTextAreaElement | HTMLElement): str
   return sel.toString()
 }
 
+/** Whether the caret sits on the first line of the draft (or the draft is single-line). */
+export function isCaretOnFirstLine(host: HTMLTextAreaElement | HTMLElement): boolean {
+  const text = editorText(host)
+  const firstBreak = text.indexOf('\n')
+  if (firstBreak === -1) return true
+  return editorCaretOffset(host) <= firstBreak
+}
+
+/** Whether the caret sits on the last line of the draft (or the draft is single-line). */
+export function isCaretOnLastLine(host: HTMLTextAreaElement | HTMLElement): boolean {
+  const text = editorText(host)
+  const lastBreak = text.lastIndexOf('\n')
+  if (lastBreak === -1) return true
+  return editorCaretOffset(host) > lastBreak
+}
+
+/** The editor caret's offset into the draft text. */
+function editorCaretOffset(host: HTMLTextAreaElement | HTMLElement): number {
+  if (host instanceof HTMLTextAreaElement) {
+    return host.selectionStart ?? 0
+  }
+  return editorSelectionOffsets(host)?.start ?? 0
+}
+
 /**
  * Move the editor caret to a draft-text offset (used to park the caret after
  * an insertion). Exact on a textarea; best-effort collapse on the

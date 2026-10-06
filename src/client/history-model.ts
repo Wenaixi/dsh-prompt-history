@@ -63,3 +63,49 @@ export function isDoubleEscape(last: number, now: number, windowMs: number = DOU
   const gap = now - last
   return gap >= 0 && gap <= windowMs
 }
+
+// ---- ↑/↓ 顺序浏览（对齐 Claude Code 的 useArrowKeyHistory）----
+//
+// 浏览位置不用「历史下标」而用「已看过几条」（step）：0 表示没在浏览，n≥1 表示
+// 正显示从最新往回数第 n 条。好处是最旧一条的边界天然是 step === total，越界时
+// step 不变、草稿不动，不需要额外的环绕分支。
+
+/**
+ * 按一次 ↑ 之后的浏览位置。
+ *
+ * 已到最旧一条（step 已达历史条数）时保持原值：Claude Code 在这里回滚索引并把
+ * 用户当前那一行原样留着，不会像 bash 那样环绕回最新。
+ *
+ * @param step - 当前已浏览条数，0 表示未在浏览。
+ * @param total - 历史总条数。
+ * @returns 新的已浏览条数。
+ */
+export function upStep(step: number, total: number): number {
+  if (total <= 0) return 0
+  return step >= total ? step : step + 1
+}
+
+/**
+ * 按一次 ↓ 之后的浏览位置；回到 0 表示退出浏览、恢复浏览前那一行。
+ *
+ * @param step - 当前已浏览条数。
+ * @returns 新的已浏览条数，最小为 0。
+ */
+export function downStep(step: number): number {
+  return step <= 1 ? 0 : step - 1
+}
+
+/**
+ * 已浏览 step 条时对应的历史下标。
+ *
+ * 历史数组按时间从旧到新存放，而浏览从最新一条开始，所以两者方向相反：
+ * step=1 取最后一条（最新），step=total 取第 0 条（最旧）。
+ *
+ * @param step - 已浏览条数，1..total。
+ * @param total - 历史总条数。
+ * @returns 历史数组下标；越界时返回 -1。
+ */
+export function atStep(step: number, total: number): number {
+  if (step < 1 || step > total) return -1
+  return total - step
+}

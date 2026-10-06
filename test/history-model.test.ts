@@ -1,6 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { DOUBLE_ESCAPE_MS, isDoubleEscape, matchesOf, nextIndex } from '../src/client/history-model.ts'
+import {
+  DOUBLE_ESCAPE_MS, atStep, downStep, isDoubleEscape, matchesOf, nextIndex, upStep,
+} from '../src/client/history-model.ts'
 
 test('an empty query returns every distinct entry, newest first', () => {
   assert.deepEqual(matchesOf(['a', 'b', 'a', 'c'], ''), [3, 2, 1])
@@ -37,4 +39,27 @@ test('needs a first press and rejects a non-monotonic gap', () => {
   assert.equal(isDoubleEscape(0, 500), false)
   assert.equal(isDoubleEscape(1000, 999), false)
   assert.equal(isDoubleEscape(1000, 1001, 2000), true)
+})
+
+test('Up advances one step at a time and stops at the oldest entry', () => {
+  assert.equal(upStep(0, 3), 1)
+  assert.equal(upStep(1, 3), 2)
+  assert.equal(upStep(2, 3), 3)
+  // 已到最旧：保持原值，不环绕回最新（Claude Code 越界回滚）。
+  assert.equal(upStep(3, 3), 3)
+  assert.equal(upStep(0, 0), 0)
+})
+
+test('Down steps back toward the live draft and exits at one', () => {
+  assert.equal(downStep(3), 2)
+  assert.equal(downStep(2), 1)
+  assert.equal(downStep(1), 0)
+  assert.equal(downStep(0), 0)
+})
+
+test('maps the browse step to a history index, newest first', () => {
+  assert.equal(atStep(1, 4), 3)
+  assert.equal(atStep(4, 4), 0)
+  assert.equal(atStep(0, 4), -1)
+  assert.equal(atStep(5, 4), -1)
 })

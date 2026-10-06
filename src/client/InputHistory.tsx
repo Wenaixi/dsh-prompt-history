@@ -3,12 +3,22 @@
  * (dsh-prompt-history). Renders nothing — it mounts capture-phase listeners on
  * the document while the session's composer card is live.
  *
- * Prompt history: Up recalls previously submitted prompts (newest first), Down
- * walks forward and restores the line that was being typed before browsing
- * began; editing the draft while browsing drops back to the live line. The '/'
- * and '@' suggestion menus keep their own arrow-key navigation: while the menu
+ * Prompt history, Claude Code style: Up starts browsing at the newest prompt and
+ * walks back one entry per press; it only engages when the caret can no longer
+ * move up (first line), so multi-line drafts keep their normal cursor movement.
+ * Down walks forward and restores the line that was being typed before browsing
+ * began; at the oldest entry Up does nothing (no wrap-around). Recalled entries
+ * park the caret at the start of the line, restoring the draft parks it at the
+ * end. Editing the draft while browsing drops back to the live line. The '/' and
+ * '@' suggestion menus keep their own arrow-key navigation: while the menu
  * (role=listbox inside the composer card) is open, the history listener
  * declines and the input trigger pipeline owns the keys.
+ *
+ * Double Escape follows the same split as Claude Code's text input: with a
+ * non-empty draft the first Escape hints "Esc again to clear" and passes
+ * through, the second one saves the draft to history and clears the input
+ * (caret back to 0); with an empty draft the double press opens the history
+ * list panel instead (historyGesture).
  *
  * Right-click paste (terminal-style, like Linux): a right-click on the composer
  * textarea pastes the clipboard directly — no context menu. Paste runs the
@@ -45,27 +55,25 @@ import { getPrefs } from './prefs.ts'
 import {
   flashCopied, hideHistoryPanel, hideSelectionToolbar, showHistoryPanel, showSelectionToolbar,
 } from './feedback.ts'
-import { isDoubleEscape, matchesOf, nextIndex } from './history-model.ts'
+import { atStep, downStep, isDoubleEscape, matchesOf, nextIndex, upStep } from './history-model.ts'
 import { T } from './i18n.ts'
 import { promptMessage, type PromptMessage } from './nodes.ts'
 import {
   COMPOSER_CARD, editorFocused, editorHost, editorSelectedText, editorSelectionOffsets,
-  focusEditor, isEditorTarget, setEditorCaret,
+  focusEditor, isCaretOnFirstLine, isCaretOnLastLine, isEditorTarget, setEditorCaret,
 } from './editor.ts'
 
 /** Full props of the input-history entry: framework standard kit + owner share. */
 export type InputHistoryProps = PropsRuntime<'conversation.input.right'>
 
-/** One browse-position snapshot; index -1 = showing the live draft (not browsing). */
+/** One browse-position snapshot; step 0 = showing the live draft (not browsing). */
 interface BrowseState {
-  /** History index currently shown; -1 = the live line. */
-  readonly index: number
-  /** The draft saved when browsing started; restored at the bottom edge. */
+  /** 已浏览条数；0 表示未在浏览，n≥1 表示正显示从最新往回数第 n 条。 */
+  readonly step: number
+  /** 开始浏览前保存的草稿；空串表示本来就是空行。 */
   readonly saved: string
   /** The exact draft our own setDraft last wrote (user-edit detection). */
   readonly lastSet: string | null
-  /** Present only in prefix-search mode: the prefix that anchors the matches. */
-  readonly prefix?: string
 }
 
 /** One open history list session (null = the panel is closed). */
@@ -81,7 +89,7 @@ interface PickerState {
 }
 
 /** Not-browsing state; also the reset target after edits and session switches. */
-const RESET_BROWSE: BrowseState = { index: -1, saved: '', lastSet: null }
+const RESET_BROWSE: BrowseState = { step: 0, saved: '', lastSet: null }
 
 /** The suggestion menu (slash/at) renders a listbox inside the card while open. */
 const OPEN_MENU = '[role="listbox"]'
@@ -213,10 +221,10 @@ export function InputHistory(props: InputHistoryProps) {
   }, [messages])
 
   // Any draft change that is not our own history write ends the browse
-  // session (bash drops the recalled line when you edit it).
+  // session (recalled lines drop back to the live draft when edited).
   useEffect(() => {
     const browse = browseRef.current
-    if (browse.index !== -1 && draft !== browse.lastSet) browseRef.current = RESET_BROWSE
+    if (browse.step !== 0 && draft !== browse.lastSet) browseRef.current = RESET_BROWSE
   }, [draft])
 
   // 面板开着时草稿就是查询词：每敲一个字（中文输入法 group 结束后同样成立）
@@ -322,8 +330,9 @@ export function InputHistory(props: InputHistoryProps) {
     paintPicker()
   }
   // History keydown listener (mounts once; reads refs at event time):
-  // ↑/↓ browse (bash-style prefix search when the draft is non-empty),
-  // Ctrl+R or double Escape for the history list panel.
+  // ↑/↓ browse (Claude Code order: newest → oldest, no prefix search),
+  // Ctrl+R or double Escape for the history list panel, non-empty double
+  // Escape clears the input and saves it to history.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
       const target = e.target
@@ -338,14 +347,23 @@ export function InputHistory(props: InputHistoryProps) {
       if (!panelOpen && card.querySelector(OPEN_MENU) !== null) return
       const live = liveRef.current
       if (live.phase === 'adjudicating' || live.phase === 'submitting' || live.removed) return
-      // 历史功能被关掉：↑/↓ 与 Ctrl+R 全部交还宿主，不拦截任何键。
+      // 历史功能被关掉：↑/↓ 与 Ctrl+R 与双击 Esc 全部交还宿主，不拦截任何键。
       if (!getPrefs().historyEnabled) return
       const history = historyRef.current
       const recall = (index: number): string => history[index] ?? ''
-      const prefixMatches = (prefix: string): number[] => {
-        const out: number[] = []
-        history.forEach((entry, i) => { if (entry.startsWith(prefix)) out.push(i) })
-        return out
+      // 回填一条并摆好光标（↑ 放行首对齐 Claude Code，↓/恢复草稿放行尾）。
+      // 只写草稿与 lastSet，浏览步数由调用方推进——browseRef 的 step 必须保持
+      // 真实浏览位置，否则 ↑ 连按会被误清成「每次都是第一步」。
+      const fill = (index: number, caretAtStart: boolean): void => {
+        const text = recall(index)
+        browseRef.current = { ...browseRef.current, lastSet: text }
+        live.inputActions.setDraft(text)
+        requestAnimationFrame(() => {
+          const host = editorHost()
+          if (host === null) return
+          focusEditor(host)
+          setEditorCaret(host, caretAtStart ? 0 : text.length)
+        })
       }
 
       // ---- history list panel: Ctrl+R or a double Escape opens it ----
@@ -386,7 +404,7 @@ export function InputHistory(props: InputHistoryProps) {
         return
       }
 
-      // ---- 关闭态：两个入口 ----
+      // ---- 关闭态：三个入口 ----
       if (ctrlR) {
         if (prefs.historyGesture === 'esc') return
         if (history.length === 0) return
@@ -395,92 +413,109 @@ export function InputHistory(props: InputHistoryProps) {
         openPicker()
         return
       }
-      // 双击 Esc：手势关闭、历史为空时不认，且任何非 Esc 的键都清零待定状态
-      // （Codex 的 primed 取消规则），否则上一次 Esc 会一直挂着等着配对。
+      // Esc：草稿非空时对齐 Claude Code 的「双击清空」——第一次提示并透传，
+      // 第二次把草稿存入历史后清空输入框；草稿为空时仍是打开历史列表的手势。
+      // 任何非 Esc 的键都清零待定状态（Codex 的 primed 取消规则），
+      // 否则上一次 Esc 会一直挂着等着配对。
       if (e.key !== 'Escape') {
         lastEscapeRef.current = 0
-      } else if (prefs.historyGesture !== 'ctrlR' && history.length > 0) {
-        const now = performance.now()
-        if (isDoubleEscape(lastEscapeRef.current, now)) {
-          e.preventDefault(); e.stopPropagation()
-          lastEscapeRef.current = 0
-          hideSelectionToolbar()
-          openPicker()
-          return
-        }
-        // 第一次 Esc 只记时间戳，不消费：单按 Esc 仍要能关掉工具栏等既有浮层。
-        lastEscapeRef.current = now
       } else {
-        lastEscapeRef.current = 0
+        const now = performance.now()
+        const doubled = isDoubleEscape(lastEscapeRef.current, now)
+        if (live.draft !== '') {
+          // 非空草稿：双击清空（对齐 Claude Code 的 handleEscape）——
+          // 第一次提示并透传，第二次把非空白草稿存入历史后清空输入框。
+          if (doubled) {
+            e.preventDefault(); e.stopPropagation()
+            lastEscapeRef.current = 0
+            if (live.draft.trim() !== '') {
+              // 与提交时的去重规则一致（跨会话全环去重 / 相邻去重）。
+              const globalOn = prefs.globalHistory
+              if (globalOn ? !history.includes(live.draft) : history[history.length - 1] !== live.draft) {
+                history.push(live.draft)
+              }
+              if (globalOn) saveRing(history)
+            }
+            browseRef.current = RESET_BROWSE
+            live.inputActions.setDraft('')
+            requestAnimationFrame(() => {
+              const host = editorHost()
+              if (host === null) return
+              focusEditor(host)
+              setEditorCaret(host, 0)
+            })
+            return
+          }
+          // 第一次 Esc 只记时间戳、不消费：单按 Esc 仍要能关掉工具栏等既有浮层。
+          lastEscapeRef.current = now
+          flashCopied(null, T('esc.again'))
+        } else if (prefs.historyGesture !== 'ctrlR' && history.length > 0) {
+          // 空草稿：双击开历史列表面板（historyGesture 控制）。
+          if (doubled) {
+            e.preventDefault(); e.stopPropagation()
+            lastEscapeRef.current = 0
+            hideSelectionToolbar()
+            openPicker()
+            return
+          }
+          lastEscapeRef.current = now
+        } else {
+          lastEscapeRef.current = 0
+        }
       }
 
-      // ---- arrow keys: prefix search (non-empty draft) or plain browse ----
+      // ---- 方向键：顺序浏览历史（Claude Code 语义：最新 → 最旧，不环绕）----
+      //
+      // 只在光标已经动不了的时候才走历史：多行草稿的光标停在中段时，↑/↓ 仍是
+      // 普通的上下移行（对齐 useTextInput 的 upOrHistoryUp）。
+      // ponytail: 按逻辑行而非视觉折行判断，超长单行折行后按 ↑ 会直接进历史；
+      // 若真实用户反馈受扰，升级路径是用 Range 测量光标所在视觉行再决定拦截。
       if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
       if (e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return
       if (history.length === 0) return
+      const host = editorHost()
+      if (host === null) return
       const browse = browseRef.current
 
-      if (e.key === 'ArrowDown' && browse.index === -1) return // native caret-down on the live line
-
-      e.preventDefault()
-      e.stopPropagation()
-
       if (e.key === 'ArrowUp') {
-        if (browse.index === -1) {
-          const draft = live.draft
-          if (draft !== '') {
-            // Prefix search: the typed line is the prefix; recall the most
-            // recent history entry starting with it (bash history-search-backward).
-            const matches = prefixMatches(draft)
-            if (matches.length === 0) return // no prefix match: keep the line
-            const index = matches[matches.length - 1] ?? 0
-            browseRef.current = { index, saved: draft, lastSet: recall(index), prefix: draft }
-            live.inputActions.setDraft(recall(index))
-          } else {
-            // Plain recall: save the live line, recall the newest prompt.
-            const index = history.length - 1
-            browseRef.current = { index, saved: '', lastSet: recall(index) }
-            live.inputActions.setDraft(recall(index))
-          }
-        } else if (browse.prefix !== undefined) {
-          // Walk further back through prefix matches.
-          const matches = prefixMatches(browse.prefix)
-          const pos = matches.indexOf(browse.index)
-          if (pos > 0) {
-            const index = matches[pos - 1] ?? 0
-            browseRef.current = { ...browse, index, lastSet: recall(index) }
-            live.inputActions.setDraft(recall(index))
-          }
+        if (!isCaretOnFirstLine(host)) return // 光标还能上移：让位宿主
+        e.preventDefault()
+        e.stopPropagation()
+        const next = upStep(browse.step, history.length)
+        if (browse.step === 0) {
+          // 开始浏览：保存当前草稿（空行也保存，退出时原样还原）。
+          browseRef.current = { step: next, saved: live.draft, lastSet: null }
+        } else if (next === browse.step) {
+          // 已到最旧一条：Claude Code 在这里回滚并不动草稿，不环绕回最新。
+          return
         } else {
-          const index = Math.max(0, browse.index - 1)
-          browseRef.current = { ...browse, index, lastSet: recall(index) }
-          live.inputActions.setDraft(recall(index))
+          browseRef.current = { ...browse, step: next }
         }
+        fill(atStep(next, history.length), true)
         return
       }
 
-      // ArrowDown while browsing.
-      if (browse.prefix !== undefined) {
-        const matches = prefixMatches(browse.prefix)
-        const pos = matches.indexOf(browse.index)
-        if (pos < matches.length - 1) {
-          const index = matches[pos + 1] ?? 0
-          browseRef.current = { ...browse, index, lastSet: recall(index) }
-          live.inputActions.setDraft(recall(index))
-        } else {
-          // Bottom edge of the prefix matches: restore the typed prefix.
-          browseRef.current = RESET_BROWSE
-          live.inputActions.setDraft(browse.saved)
-        }
-      } else if (browse.index + 1 >= history.length) {
-        // Bottom edge: restore the saved live line and stop browsing.
-        browseRef.current = RESET_BROWSE
-        live.inputActions.setDraft(browse.saved)
-      } else {
-        const index = browse.index + 1
-        browseRef.current = { ...browse, index, lastSet: recall(index) }
-        live.inputActions.setDraft(recall(index))
+      // ↓：未浏览时交给宿主的原生下行；浏览中也要光标在最后一行才走历史
+      // （对齐 downOrHistoryDown 的「先移光标」），回到 0 时恢复草稿。
+      if (browse.step === 0) return
+      if (!isCaretOnLastLine(host)) return
+      e.preventDefault()
+      e.stopPropagation()
+      const next = downStep(browse.step)
+      if (next === 0) {
+        const saved = browse.saved
+        browseRef.current = { step: 0, saved: '', lastSet: saved }
+        live.inputActions.setDraft(saved)
+        requestAnimationFrame(() => {
+          const h = editorHost()
+          if (h === null) return
+          focusEditor(h)
+          setEditorCaret(h, saved.length)
+        })
+        return
       }
+      browseRef.current = { ...browse, step: next }
+      fill(atStep(next, history.length), false)
     }
     document.addEventListener('keydown', onKeyDown, true)
     return () => {
