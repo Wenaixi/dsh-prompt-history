@@ -1,17 +1,17 @@
 /**
- * 插件配置卡的状态控制器：把宿主的 ConfigForm 投影成官方 SettingsForm 的草稿模型。
+ * 插件配置卡的状态控制器：把宿主的 ConfigForm 投影成设置卡快照。
  *
- * 形态仿官方 dsh-client-ui-settings-subagent 的 card controller：自己持有草稿、
- * 用快照 revision 做冲突栅栏、保存时一次 mutate、按代际抑制迟到的回执。
- * 官方 SettingsFormModel 只服务文本/数字字段，本插件五个字段全是开关/单选，
- * 因此不套官方模型，只套官方外壳 SettingsForm（packages/client/ui-settings/… 0.2.0-rc.2）。
+ * 保存语义是「写即生效」：每次操作（开关、单选、恢复默认）都立即走
+ * ConfigForm.mutate 写宿主，不经过 staged 草稿，也没有保存按钮。
+ * 宿主表单自带写入队列与 revision 栅栏：连点操作按序排队、写被拒时
+ * recover 重读回滚到宿主真值。插件层只负责把宿主快照投影成 UI 状态，
+ * 并用代际计数抑制卸载后的迟到回执。
  */
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
-import type { SettingsFormShell } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import {
-  DEFAULT_PREFS, draftDiffOps, normalizePrefs, planLegacyMigration, prefsEqual,
-  type PluginPrefs,
+  DEFAULT_PREFS, draftDiffOps, normalizePrefs, planLegacyMigration,
+  type PluginPrefs, type PrefOp,
 } from './prefs-model.ts'
 
 /** 旧版浏览器配置载荷的键，只用于一次性迁移读取。 */
@@ -28,14 +28,18 @@ function removeLegacyRaw(): void {
 /** 一条偏好字段名。 */
 export type PrefField = keyof PluginPrefs
 
-/** 设置卡组件消费的快照：官方 SettingsForm 需要的外壳 + 各字段当前值。 */
-export interface PrefsCardSnapshot extends SettingsFormShell {
-  /** 展示值：草稿优先，没有草稿时读宿主当前值。 */
-  values: PluginPrefs
-  /** 草稿期间宿主文档被别处改动：保存被拒绝，显示冲突提示。 */
-  conflicted: boolean
+/** 设置卡组件消费的快照：UI 值直接来自宿主快照，不做本地草稿。 */
+export interface PrefsCardSnapshot {
+  /** 宿主是否对本插件提供这份命名空间。 */
+  available: boolean
+  /** 宿主文档是否接受写入；只读部署时控件禁用。 */
+  writable: boolean
+  /** 最近一次自动保存是否未被宿主接受（或传输失败）。 */
+  failed: boolean
   /** 一次性旧配置迁移是否已尝试（含已判定无需迁移）。 */
   migrated: boolean
+  /** 宿主当前偏好值；写失败回滚后即为回落值。 */
+  values: PluginPrefs
 }
 
 /** 注册方 inject 给设置卡组件的数据面；hooks 成员由渲染器映射成 usePrefsCard。 */
@@ -45,8 +49,6 @@ export interface SettingsCardFace {
   }
   edit: <F extends PrefField>(field: F, next: PluginPrefs[F]) => void
   resetAll: () => void
-  save: () => void
-  discard: () => void
 }
 
 /** 最小快照源：getSnapshot/subscribe 满足插槽 hooks 契约，set 用于发布新快照。 */
@@ -79,18 +81,12 @@ function currentPrefsOf(scope: ConfigForm<Record<string, unknown>>): PluginPrefs
 export class SettingsCardController {
   private readonly scope: ConfigForm<Record<string, unknown>>
   private readonly store = createObservable<PrefsCardSnapshot>({
-    available: false, writable: false, dirty: false, invalid: false,
-    saving: false, failed: false, values: { ...DEFAULT_PREFS }, conflicted: false, migrated: false,
+    available: false, writable: false, failed: false, migrated: false,
+    values: { ...DEFAULT_PREFS },
   })
-  /** 正在编辑的草稿；undefined 表示未开始编辑，展示宿主当前值。 */
-  private draft: PluginPrefs | undefined
-  /** 草稿建立时的命名空间修订号，保存时作为 expectedRevision 栅栏。 */
-  private draftRevision: number | undefined
-  private saving = false
   private failed = false
-  private conflicted = false
   private migrated = false
-  /** 代际计数：dispose 后抑制任何迟到的保存/迁移回执。 */
+  /** 代际计数：dispose 后抑制任何迟到的写入/迁移回执。 */
   private generation = 0
   private readonly unsubscribe: () => void
 
@@ -99,7 +95,6 @@ export class SettingsCardController {
     this.store.set(this.projection())
     this.unsubscribe = scope.subscribe(() => {
       this.maybeMigrate()
-      this.detectConflict()
       this.publish()
     })
     this.maybeMigrate()
@@ -111,8 +106,6 @@ export class SettingsCardController {
       hooks: { prefsCard: this.store },
       edit: (field, next) => this.edit(field, next),
       resetAll: () => this.resetAll(),
-      save: () => { void this.runSave() },
-      discard: () => this.discard(),
     }
   }
 
@@ -122,71 +115,42 @@ export class SettingsCardController {
     this.unsubscribe()
   }
 
-  /** 修改一个字段：只改草稿，不写宿主。 */
+  /** 修改一个字段：立即写宿主，不经过草稿。 */
   edit<F extends PrefField>(field: F, next: PluginPrefs[F]): void {
-    const snapshot = this.scope.getSnapshot()
-    if (snapshot.status !== 'ready' || !snapshot.writable || this.saving) return
-    this.beginDraft()
-    this.draft = { ...this.draft!, [field]: next }
+    if (!this.writableNow()) return
     this.failed = false
     this.publish()
+    void this.write([{ op: 'set', path: [field], value: next }])
   }
 
-  /** 全部恢复默认：草稿置为 schema 默认值，保存时只写有差异的字段。 */
+  /** 全部恢复默认：立即写回 schema 默认值，只写有差异的字段。 */
   resetAll(): void {
-    const snapshot = this.scope.getSnapshot()
-    if (snapshot.status !== 'ready' || !snapshot.writable || this.saving) return
-    this.beginDraft()
-    this.draft = { ...DEFAULT_PREFS }
+    if (!this.writableNow()) return
     this.failed = false
     this.publish()
+    void this.write(draftDiffOps(DEFAULT_PREFS, currentPrefsOf(this.scope)))
   }
 
-  /** 放弃草稿，回到宿主当前值。 */
-  discard(): void {
-    if (this.saving) return
-    this.clearDraft()
-    this.publish()
-  }
-
-  private async runSave(): Promise<void> {
+  private writableNow(): boolean {
     const snapshot = this.scope.getSnapshot()
-    if (snapshot.status !== 'ready' || !snapshot.writable || this.saving) return
-    const draft = this.draft ?? currentPrefsOf(this.scope)
-    const ops = draftDiffOps(draft, currentPrefsOf(this.scope))
-    if (ops.length === 0) {
-      // 草稿与当前一致：没有可写的东西，清掉草稿即可。
-      this.clearDraft()
-      this.publish()
-      return
-    }
-    if (this.draft !== undefined && this.draftRevision !== undefined
-      && snapshot.revision !== this.draftRevision) {
-      // 编辑期间文档被别处改动：拒绝保存，提示用户放弃草稿。
-      this.conflicted = true
-      this.publish()
-      return
-    }
+    return snapshot.status === 'ready' && snapshot.writable
+  }
+
+  /** 一次宿主写入：失败只标记 failed，宿主镜像会自动 recover 回读回落。 */
+  private async write(ops: PrefOp[]): Promise<void> {
+    if (ops.length === 0) return
     const generation = this.generation
-    this.saving = true
-    this.failed = false
-    this.publish()
     let accepted: boolean
     try {
-      accepted = await this.scope.mutate(ops, this.draftRevision)
+      accepted = await this.scope.mutate(ops)
     } catch {
       if (generation !== this.generation) return
-      this.saving = false
       this.failed = true
       this.publish()
       return
     }
     if (generation !== this.generation) return
-    this.saving = false
-    // 宿主已把答案折进镜像：读回与草稿逐字段比对判定是否真的落盘。
-    const landed = prefsEqual(currentPrefsOf(this.scope), draft)
-    this.failed = !accepted || !landed
-    if (!this.failed) this.clearDraft()
+    this.failed = !accepted
     this.publish()
   }
 
@@ -198,62 +162,28 @@ export class SettingsCardController {
     const ops = planLegacyMigration(snapshot.user, readLegacyRaw())
     if (ops === undefined) return
     const generation = this.generation
-    this.saving = true
     this.failed = false
     this.publish()
     void this.scope.mutate(ops).then((accepted) => {
       if (generation !== this.generation) return
-      this.saving = false
       if (accepted) removeLegacyRaw()
       else this.failed = true
       this.publish()
     }).catch(() => {
       if (generation !== this.generation) return
-      this.saving = false
       this.failed = true
       this.publish()
     })
   }
 
-  /** 草稿期间宿主文档修订号前进：视草稿与当前值是否一致决定清草稿或标冲突。 */
-  private detectConflict(): void {
-    if (this.saving || this.draft === undefined || this.draftRevision === undefined) return
-    const snapshot = this.scope.getSnapshot()
-    if (snapshot.revision !== this.draftRevision) {
-      if (prefsEqual(this.draft, currentPrefsOf(this.scope))) this.clearDraft()
-      else this.conflicted = true
-    }
-  }
-
-  private beginDraft(): void {
-    if (this.draft === undefined) {
-      this.draft = currentPrefsOf(this.scope)
-      this.draftRevision = this.scope.getSnapshot().revision
-    }
-  }
-
-  private clearDraft(): void {
-    this.draft = undefined
-    this.draftRevision = undefined
-    this.failed = false
-    this.conflicted = false
-  }
-
   private projection(): PrefsCardSnapshot {
     const snapshot = this.scope.getSnapshot()
-    const current = currentPrefsOf(this.scope)
-    const draft = this.draft
     return {
       available: snapshot.status === 'ready',
       writable: snapshot.writable,
-      dirty: draft !== undefined && !prefsEqual(draft, current),
-      // 冲突时表单无效：官方 SettingsForm 的 Save 会被禁用，防止覆盖他人改动。
-      invalid: this.conflicted,
-      saving: this.saving,
       failed: this.failed,
-      values: draft ?? current,
-      conflicted: this.conflicted,
       migrated: this.migrated,
+      values: currentPrefsOf(this.scope),
     }
   }
 

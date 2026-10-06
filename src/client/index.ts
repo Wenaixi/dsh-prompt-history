@@ -30,8 +30,10 @@ const PKG = '@wenaixi/dsh-prompt-history'
 export const inject = ['slots', 'locale']
 
 const SETTINGS_CSS = [
-  // 官方 SettingsForm 承担外壳、保存与状态提示；这里只负责行内布局与单选块。
-  // 颜色、圆角、间距一律走宿主 token，浅色/深色自动跟随。
+  // 外壳由本插件自绘（unavailable/readOnly/保存失败提示都在这里渲染），
+  // 行内布局与单选块也在这里。颜色、圆角、间距一律走宿主 token，浅色/深色自动跟随。
+  '.dsh-ph-notice{margin:0 0 12px;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-tertiary);}',
+  '.dsh-ph-failed{color:var(--dsw-alias-state-error-primary);}',
   '.dsh-ph-group{display:flex;flex-direction:column;gap:4px;margin-top:16px;}',
   '.dsh-ph-group:first-child{margin-top:0;}',
   '.dsh-ph-groupTitle{margin:0;font-size:13px;font-weight:500;line-height:20px;color:var(--dsw-alias-label-secondary);}',
@@ -51,9 +53,7 @@ const SETTINGS_CSS = [
   '.dsh-ph-option:disabled{opacity:.5;cursor:default;}',
   '.dsh-ph-optionTitle{font-size:13.5px;font-weight:500;line-height:20px;}',
   '.dsh-ph-optionHint{font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary);}',
-  '.dsh-ph-foot{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:16px;}',
-  '.dsh-ph-footHint{font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary);}',
-  '.dsh-ph-conflict{color:var(--dsw-alias-state-error-primary);}',
+  '.dsh-ph-foot{display:flex;align-items:center;justify-content:flex-end;gap:16px;margin-top:16px;}',
 ].join('')
 
 export function apply(ctx: ClientContext): void {
@@ -76,7 +76,7 @@ export function apply(ctx: ClientContext): void {
       const form = forms.get<Record<string, unknown>>(HOST_NS)
       // 功能组件与设置卡共享同一份宿主快照，写入即时反映到输入行为。
       ctx.effect(() => bindHostForm(form), 'dsh-prompt-history: host preferences')
-      // 设置卡走官方 SettingsForm：控制器做 staged 草稿与一次保存。
+      // 设置卡没有保存按钮：操作即写，写入由宿主 ConfigForm 排队与做 revision 栅栏。
       const controller = new SettingsCardController(form)
       ctx.effect(() => () => controller.dispose(), 'dsh-prompt-history: config card controller')
       return ctx.slots.register(

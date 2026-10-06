@@ -60,7 +60,7 @@ dsh plugin --profile web add @wenaixi/dsh-prompt-history
 
 ## Configuração
 
-Abra **Plugins → `@wenaixi/dsh-prompt-history` → configuração** (persistido pelo Host do DSH em `cordis.patch.yml`; os ajustes antigos do navegador migram na primeira abertura). O cartão é o `SettingsForm` oficial: as alterações ficam em um rascunho até você clicar em Salvar, que grava no Host em uma única mutação com trava de revisão.
+Abra **Plugins → `@wenaixi/dsh-prompt-history` → configuração** (persistido pelo Host do DSH em `cordis.patch.yml`; os ajustes antigos do navegador migram na primeira abertura). As alterações são salvas na hora, sem botão Salvar: cada interruptor, cada seleção ou «Restaurar padrões» grava o Host imediatamente.
 
 | Opção | Padrão | Significado |
 |---|---|---|
@@ -89,7 +89,7 @@ pnpm run typecheck   # tsc --noEmit
 pnpm run build       # tsc (lib/types) + tsdown (lib/index.js / lib/invariant.js / lib/client.js)
 ```
 
-A metade do navegador (`src/client/`) se registra no slot `conversation.input.right` e no cartão de configuração do detalhe do plugin (`plugins.bundle.config`); o build emite o formato de closure `__ModuleLoader__` do DSH com `react` e os pacotes peer oficiais `@deepseek-ai/*` como externos. O cartão usa o invólucro `SettingsForm` oficial com `SettingsCardController` para rascunhos e trava de revisão. Os dicionários vivem em `src/client/locales.ts` (`zh` autoritativo, `en` com paridade de chaves) e se registram via `ctx.locale.register`.
+A metade do navegador (`src/client/`) se registra no slot `conversation.input.right` e no cartão de configuração do detalhe do plugin (`plugins.bundle.config`); o build emite o formato de closure `__ModuleLoader__` do DSH com `react` e os pacotes peer oficiais `@deepseek-ai/*` como externos. O cartão desenha o próprio invólucro e o `SettingsCardController` grava a cada mudança, voltando ao valor do Host se recusado. Os dicionários vivem em `src/client/locales.ts` (`zh` autoritativo, `en` com paridade de chaves) e se registram via `ctx.locale.register`.
 
 ## Como funciona
 

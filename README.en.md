@@ -60,7 +60,7 @@ dsh plugin --profile web add @wenaixi/dsh-prompt-history
 
 ## Configuration
 
-Open **Plugins → `@wenaixi/dsh-prompt-history` → configuration** (persisted by the DSH Host into `cordis.patch.yml`; legacy browser settings migrate on first open). The card is the official `SettingsForm`: edits stay a staged draft until you click Save, which writes the Host in one revision-fenced mutation.
+Open **Plugins → `@wenaixi/dsh-prompt-history` → configuration** (persisted by the DSH Host into `cordis.patch.yml`; legacy browser settings migrate on first open). Changes save immediately — there is no Save button: every toggle, option pick, or "Restore defaults" click writes the Host at once.
 
 | Option | Default | Meaning |
 |---|---|---|
@@ -89,7 +89,7 @@ pnpm run typecheck   # tsc --noEmit
 pnpm run build       # tsc (lib/types) + tsdown (lib/index.js / lib/invariant.js / lib/client.js)
 ```
 
-The browser half (`src/client/`) registers into the `conversation.input.right` slot and the plugin-detail configuration card (`plugins.bundle.config`); the build emits the DSH `__ModuleLoader__` closure format with `react` and the official `@deepseek-ai/*` peer packages as externals (everything else comes from the browser module table). The card uses the official `SettingsForm` shell with `SettingsCardController` for staged drafts and revision fencing. Copy dictionaries live in `src/client/locales.ts` (`zh` authoritative, `en` key-parity) and register via `ctx.locale.register`.
+The browser half (`src/client/`) registers into the `conversation.input.right` slot and the plugin-detail configuration card (`plugins.bundle.config`); the build emits the DSH `__ModuleLoader__` closure format with `react` and the official `@deepseek-ai/*` peer packages as externals (everything else comes from the browser module table). The card draws its own shell and `SettingsCardController` writes on every change, falling back to the Host value on refusal. Copy dictionaries live in `src/client/locales.ts` (`zh` authoritative, `en` key-parity) and register via `ctx.locale.register`.
 
 ## How it works
 

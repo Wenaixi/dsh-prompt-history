@@ -45,20 +45,19 @@
 |---|---|
 | `prefs-model.ts` | 纯函数：DEFAULT_PREFS、normalizePrefs、parseLegacyPrefs、prefsOps、planLegacyMigration、prefsEqual、draftDiffOps。无 DOM 无 cordis |
 | `prefs.ts` | 宿主表单快照投影，发布给功能组件；表单未就绪返回默认值，绝不读旧 localStorage |
-| `card-controller.ts` | `SettingsCardController`：staged 草稿、revision 冲突栅栏、一次保存、代际计数 |
-| `SettingsCard.tsx` | 配置卡组件：官方 `SettingsForm` 外壳 + 官方 `Switch` + 自绘单选块 |
+| `card-controller.ts` | `SettingsCardController`：宿主快照投影成 UI 状态、操作即写、失败标记、代际计数 |
+| `SettingsCard.tsx` | 配置卡组件：自绘外壳（不可用/只读/失败提示）+ 官方 `Switch` + 自绘单选块 |
 | `InputHistory.tsx` | 交互主体：历史召回、列表浮层、复制引用、右键粘贴 |
 | `history-model.ts` / `nodes.ts` / `editor.ts` / `feedback.ts` / `i18n.ts` | 纯模型 / 节点读取 / 编辑器访问 / 浮层 / 非 React 取词 |
 
 - 一次性迁移判据是宿主 `user` 层：空（含空对象）表示从未写过，此时才提交旧 localStorage，成功后删除旧载荷，不需要标志键。
 - 订阅表单快照必须用箭头函数包一层：`form.getSnapshot` 直接交给 useSyncExternalStore 会丢 this，表单内读 `this.store` 抛 TypeError，配置区整块渲染失败。
 
-## 设置界面规范（官方 SettingsForm 体系）
+## 设置界面规范（自绘外壳 + 操作即写）
 
-- **外壳走官方 `SettingsForm`**（primitives）：不可用提示、只读横幅、保存失败提示、Save/Saving、离开即丢弃草稿全由它承担。
-- **保存语义 = staged 草稿 + 一次保存**：编辑只改草稿，Save 才一次 mutate；不逐项即时写。
-- **模型走自写 `SettingsCardController`**（仿官方 settings-subagent）：官方 `SettingsFormModel` 只服务文本/数字字段，开关与单选不进它。
-- 控制器三件套：revision 冲突栅栏（冲突时 invalid 禁用 Save）、保存后回读逐字段比对确认落盘、saveGeneration 抑制卸载后的迟到回执。
+- **外壳自绘**：不可用提示、只读横幅、保存失败提示都由 `SettingsCard.tsx` 自己渲染（官方 `SettingsForm` 是 staged 草稿体系，已不再使用）。
+- **保存语义 = 写即生效**：开关、单选、恢复默认都立即走 `ConfigForm.mutate` 写宿主，没有保存按钮、没有草稿；连点由宿主写入队列串行 + revision 栅栏，写被拒时宿主 `recover` 重读、UI 自动回落到真值。
+- **模型走自写 `SettingsCardController`**：把宿主快照投影成 `PrefsCardSnapshot`（available/writable/failed/migrated/values），代际计数抑制卸载后的迟到回执。
 - 布局：一行标题 + 一行说明 + 右侧控件；行间只用 0.5px 分隔线；不套第二层卡片。
 - 单选用「可点面板块 + `role=radio`」而非 SegmentedControl——说明文字要跟着每个选项走。
 - 开关用官方 `Switch`（`label` 必填）；颜色圆角间距一律 `--dsw-*` token，浅深色自动跟随。
@@ -147,6 +146,7 @@ npm pack --dry-run                                       # 产物清单核对
 
 ## 决策记录
 
-- **2026-10-06 设置界面迁移官方 SettingsForm**：配置卡从「手写外壳 + 逐项即时写」改为官方外壳 + staged 草稿 + 一次保存 + revision 冲突栅栏。顺带修掉两个拦路 bug——tsdown 产物注册 id 与包名不一致（2.0.1 客户端从未加载成功）、插槽 key 未用包名（配置区不渲染）。发布 v2.0.2。
+- **2026-10-06 去掉保存按钮，设置改动自动保存**：配置卡从「官方 SettingsForm 外壳 + staged 草稿 + 一次保存」改为自绘外壳 + 操作即写（开关/单选/恢复默认点击即 `ConfigForm.mutate`，无草稿无保存按钮）。删除草稿机、冲突栅栏与 `save/saving/conflict/draftHint` 文案键；失败时复用 `settings.saveFailed` 提示，宿主 `recover` 自动回落到真值。连点由宿主写入队列串行处理。
+- **2026-10-06 设置界面迁移官方 SettingsForm**：配置卡从「手写外壳 + 逐项即时写」改为官方外壳 + staged 草稿 + 一次保存 + revision 冲突栅栏。顺带修掉两个拦路 bug——tsdown 产物注册 id 与包名不一致（2.0.1 客户端从未加载成功）、插槽 key 未用包名（配置区不渲染）。发布 v2.0.2。（注：该「一次保存」语义在当日稍后被上一条决策撤销，改为自动保存。）
 - **2026-10-05 移除会话目录（Chat TOC）**：删除 `ChatToc.tsx` 与 `sessionCtx.ts`，`tocVisible` 字段、设置项、样式、文案、README 段落一并删除。↑/↓ 召回仍只覆盖已加载窗口。已装用户若保留旧 patch 的 `tocVisible` 行，设置写入会被宿主以未知键拒绝，升级时需同步删掉该行。
 - **2026-10-05 历史列表选择器落地**：见上文「历史列表选择器」；详细实现计划存于 `docs/history-picker-plan.md`。

@@ -1,11 +1,11 @@
 /**
- * 插件详情页的配置卡：官方 SettingsForm 外壳 + staged 草稿，一次保存写宿主。
+ * 插件详情页的配置卡：自绘外壳 + 操作即写。
  *
- * 数据面完全来自宿主：SettingsCardController 把 ConfigForm 快照投影成
- * SettingsForm 外壳需要的状态，编辑只改草稿，Save 才一次 mutate 写宿主。
+ * 没有保存按钮：每次操作（开关、单选、恢复默认）都立即写宿主，写入由宿主
+ * ConfigForm 排队并做 revision 栅栏，被拒时宿主回读、UI 自动回落到真值。
  * 组件只接收 slot props 与注册方 inject 注入的数据面，不接触 ctx。
  */
-import { Button, SettingsForm, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { PrefsCardSnapshot } from './card-controller.ts'
 import type { CopyMode, HistoryGesture, PluginPrefs } from './prefs-model.ts'
@@ -17,8 +17,6 @@ export type SettingsCardProps = PropsRuntime<'plugins.bundle.config'>
     readonly usePrefsCard: <S>(select: (snapshot: PrefsCardSnapshot) => S, equal?: (a: S, b: S) => boolean) => S
     readonly edit: <F extends keyof PluginPrefs>(field: F, next: PluginPrefs[F]) => void
     readonly resetAll: () => void
-    readonly save: () => void
-    readonly discard: () => void
   }
 
 /** 复制方式的三个候选值，按「什么都不做 → 手动 → 自动」排列。 */
@@ -115,7 +113,10 @@ export function SettingsCardSlot(props: SettingsCardProps): JSX.Element | null {
   const { t } = props
   if (props.view !== 'page') return null
   const snapshot = props.usePrefsCard((state) => state)
-  const locked = snapshot.saving || !snapshot.writable
+  if (!snapshot.available) {
+    return <p className="dsh-ph-notice" role="status">{t('settings.unavailable')}</p>
+  }
+  const locked = !snapshot.writable
   const value = snapshot.values
   const copyOptions = COPY_MODES.map((mode) => ({
     value: mode.value,
@@ -127,18 +128,10 @@ export function SettingsCardSlot(props: SettingsCardProps): JSX.Element | null {
     label: t(gesture.label),
     hint: t(gesture.hint),
   }))
-  const labels = {
-    unavailable: t('settings.unavailable'),
-    readOnly: t('settings.readOnly'),
-    saveFailed: t('settings.saveFailed'),
-    save: t('settings.save'),
-    saving: t('settings.saving'),
-  }
   return (
-    <SettingsForm labels={labels} state={snapshot} onSave={props.save} onDiscard={props.discard}>
-      {snapshot.conflicted ? (
-        <p className="dsh-ph-conflict" role="status">{t('settings.conflict')}</p>
-      ) : null}
+    <div className="dsh-ph-settings">
+      {locked ? <p className="dsh-ph-notice" role="status">{t('settings.readOnly')}</p> : null}
+      {snapshot.failed ? <p className="dsh-ph-failed" role="status">{t('settings.saveFailed')}</p> : null}
       <Group title={t('settings.group.input')}>
         <ToggleRow
           title={t('settings.row.history')}
@@ -181,11 +174,10 @@ export function SettingsCardSlot(props: SettingsCardProps): JSX.Element | null {
         />
       </Group>
       <div className="dsh-ph-foot">
-        <span className="dsh-ph-footHint">{t('settings.draftHint')}</span>
         <Button variant="outline" size="sm" onClick={props.resetAll} disabled={locked}>
           {t('settings.reset')}
         </Button>
       </div>
-    </SettingsForm>
+    </div>
   )
 }

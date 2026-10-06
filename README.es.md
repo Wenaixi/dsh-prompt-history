@@ -60,7 +60,7 @@ dsh plugin --profile web add @wenaixi/dsh-prompt-history
 
 ## Configuración
 
-Abre **Plugins → `@wenaixi/dsh-prompt-history` → configuración** (persistido por el Host de DSH en `cordis.patch.yml`; los ajustes antiguos del navegador se migran en la primera apertura). La tarjeta es el `SettingsForm` oficial: los cambios quedan en un borrador hasta que pulsas Guardar, que escribe al Host en una sola mutación con bloqueo de revisión.
+Abre **Plugins → `@wenaixi/dsh-prompt-history` → configuración** (persistido por el Host de DSH en `cordis.patch.yml`; los ajustes antiguos del navegador se migran en la primera apertura). Los cambios se guardan al instante, sin botón de Guardar: cada interruptor, cada selección o «Restaurar valores» escribe al Host de inmediato.
 
 | Opción | Predeterminado | Significado |
 |---|---|---|
@@ -89,7 +89,7 @@ pnpm run typecheck   # tsc --noEmit
 pnpm run build       # tsc (lib/types) + tsdown (lib/index.js / lib/invariant.js / lib/client.js)
 ```
 
-La mitad del navegador (`src/client/`) se registra en el slot `conversation.input.right` y en la tarjeta de configuración del detalle del plugin (`plugins.bundle.config`); el build emite el formato de cierre `__ModuleLoader__` de DSH con `react` y los paquetes peer oficiales `@deepseek-ai/*` como externos. La tarjeta usa el armazón `SettingsForm` oficial con `SettingsCardController` para borradores y bloqueo de revisión. Los diccionarios viven en `src/client/locales.ts` (`zh` autoritativo, `en` con paridad de claves) y se registran con `ctx.locale.register`.
+La mitad del navegador (`src/client/`) se registra en el slot `conversation.input.right` y en la tarjeta de configuración del detalle del plugin (`plugins.bundle.config`); el build emite el formato de cierre `__ModuleLoader__` de DSH con `react` y los paquetes peer oficiales `@deepseek-ai/*` como externos. La tarjeta dibuja su propio armazón y `SettingsCardController` escribe en cada cambio, volviendo al valor del Host si lo rechaza. Los diccionarios viven en `src/client/locales.ts` (`zh` autoritativo, `en` con paridad de claves) y se registran con `ctx.locale.register`.
 
 ## Cómo funciona
 

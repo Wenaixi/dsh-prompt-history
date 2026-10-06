@@ -61,7 +61,7 @@ dsh plugin --profile web add @wenaixi/dsh-prompt-history
 
 ## 配置
 
-打开 **插件 → `@wenaixi/dsh-prompt-history` → 配置**（由 DSH 宿主配置持久化到 `cordis.patch.yml`；旧版浏览器设置会在首次打开时自动迁移）。配置卡是官方 `SettingsForm`：改动只进草稿，点「保存」才一次写入宿主：
+打开 **插件 → `@wenaixi/dsh-prompt-history` → 配置**（由 DSH 宿主配置持久化到 `cordis.patch.yml`；旧版浏览器设置会在首次打开时自动迁移）。改动即时保存，不需要保存按钮——每次开关、切换单选或点「恢复默认」都立即写入宿主：
 
 | 选项 | 默认 | 说明 |
 |---|---|---|
@@ -91,7 +91,7 @@ pnpm run typecheck   # tsc --noEmit
 pnpm run build       # tsc（lib/types）+ tsdown（lib/index.js / lib/invariant.js / lib/client.js）
 ```
 
-浏览器半区（`src/client/`）注册在 `conversation.input.right` 槽位与插件详情页配置卡（`plugins.bundle.config`），构建产物为 DSH `__ModuleLoader__` 闭包格式，外部依赖仅 `react` 与官方 `@deepseek-ai/*` peer 包（其余由浏览器模块表提供）。配置卡走官方 `SettingsForm` 体系（`SettingsCardController` 做 staged 草稿与冲突栅栏）。文案字典在 `src/client/locales.ts`（`zh` 为准、`en` 键位对齐），通过 `ctx.locale.register` 注册。
+浏览器半区（`src/client/`）注册在 `conversation.input.right` 槽位与插件详情页配置卡（`plugins.bundle.config`），构建产物为 DSH `__ModuleLoader__` 闭包格式，外部依赖仅 `react` 与官方 `@deepseek-ai/*` peer 包（其余由浏览器模块表提供）。配置卡自绘外壳，`SettingsCardController` 做「操作即写」：每次改动直接写宿主，失败回落宿主真值。文案字典在 `src/client/locales.ts`（`zh` 为准、`en` 键位对齐），通过 `ctx.locale.register` 注册。
 
 ## 原理
 
