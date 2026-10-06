@@ -33,12 +33,16 @@
 |---|---|---|---|
 | copyMode | off / toolbar / auto | toolbar | 选中文本后：不做 / 弹工具栏 / 立即复制 |
 | rightClickPaste | bool | true | 输入框右键直接粘贴 |
-| historyEnabled | bool | true | 关闭后 ↑/↓、Ctrl+R、双击 Esc 全部交还宿主 |
-| historyGesture | ctrlR / esc / both | both | 打开历史列表的手势 |
-| globalHistory | bool | false | 历史跨会话保留，上限 200 条 |
+| historyEnabled | bool | true | 关闭后 ↑/↓、双击 Esc 全部交还宿主 |
+| doubleEsc | bool | true | 双击 Esc 开关：非空清空 + 空草稿开列表；关则 Esc 完全交还宿主 |
+| maxHistoryItems | int 10..1000 | 100 | 历史环与列表条数上限（UI 档位 50/100/200/500/1000） |
+| relativeTime | bool | true | 历史列表行首显示相对时间（5m/3h/2d） |
+| fuzzyMatch | bool | true | 列表过滤允许字符子序列模糊（isSubsequence，exact 在前） |
+| globalHistory | bool | false | 历史跨会话保留，受 maxHistoryItems 约束 |
 
 - 只有 volatile 字段会被投影成表单；非 volatile 字段写入抛错，volatile 字段不落盘。
 - 旧 `copyOnSelect` 兼容：true → auto，false → toolbar；`copyMode=off` 是合法新值，不被规范化掉。
+- **2.2.0 破坏性迁移**：已装用户 profile 里残留的 `historyGesture` 行会使配置写入被宿主以未知键拒绝，升级需删除该行（同 tocVisible 先例）。
 
 ## 客户端数据面（src/client/）
 
@@ -100,7 +104,7 @@
 
 ```sh
 node node_modules/typescript/bin/tsc --noEmit             # 类型
-node --experimental-strip-types --test test/*.test.ts     # 26 项纯函数测试（prefs 16 + history 10）
+node --experimental-strip-types --test test/*.test.ts     # 30 项纯函数测试（prefs 17 + history 13）
 pnpm build                                                # 两步构建
 npm pack --dry-run                                        # 产物清单核对（README.md + README.zh.md）
 ```
@@ -126,10 +130,10 @@ npm pack --dry-run                                        # 产物清单核对�
 
 ## 历史列表选择器（已实现）
 
-- 入口：Ctrl+R；或输入框为空时 800 ms 内双击 Esc（`historyGesture` 控制）。焦点留在输入框：打字过滤、↑↓/Home/End 移动高亮、Enter/Tab 回填、Esc 还原草稿。
+- 入口：空草稿双击 Esc（2.2.0 起；Ctrl+R 已移除）。焦点留在输入框：打字过滤、↑↓/Home/End 移动高亮、Enter/Tab 回填、Esc 还原草稿。
 - **查询词取自草稿而非逐键累加**：IME composition 期间浏览器不发 keydown，攒按键永远攒不到汉字。草稿 effect 里比对 `origin` 与 `seen` 推导 query。
 - **面板已开时不让位给建议菜单**：`OPEN_MENU` 检查要跳过，否则取消面板还原出的 `/` 或 `@` 开头草稿会弹出建议菜单，面板再也关不掉。
-- 关闭态的第一次 Esc 只记 `performance.now()` 时间戳并放行，第二次才消费；其他键清零。
+- 关闭态的第一次 Esc 只记 `performance.now()` 时间戳并放行，第二次才消费；其他键清零；`doubleEsc=false` 时 Esc 完全让位宿主。
 - 卸载 cleanup 里 `closePicker()`，避免切换会话或热重载后 body 留孤儿节点。
 
 ## 键位速查（2026-10-06 复刻 Claude Code 语义）
@@ -146,7 +150,7 @@ npm pack --dry-run                                        # 产物清单核对�
 ## 不做的事
 
 - 不自建 HTTP 端点、不新增第三方依赖、不为旧 DSH 版本保留兼容层。
-- 手势仅 Ctrl+R 与双击 Esc 两个入口。
+- 手势仅双击 Esc 一个入口（Ctrl+R 已移除，2.2.0 起）。
 - 不改用户日常 profile；不强行改行 id（破坏性迁移）。
 
 ## 决策记录
