@@ -3,8 +3,9 @@
 ## 项目定位
 
 - 包名：`@wenaixi/dsh-prompt-history`（scoped；npm 与 GitHub 均已发布，latest 见 CHANGELOG）。
-- 功能：DSH 对话输入框的终端式交互——上下键提问历史（前缀搜索、Ctrl+R 列表）、选中文本复制或引用、右键粘贴。
+- 功能：DSH 对话输入框的终端式交互——Claude Code 式上下键历史、Ctrl+R 历史列表、选中文本复制或引用、右键粘贴。
 - 形态：Host 半侧只声明配置 schema；浏览器半侧交付交互、配置卡与文案。零第三方依赖。
+- 文档：主 README 英文、`README.zh.md` 中文；CHANGELOG 中文。
 - 仓库：`origin` = Wenaixi/dsh-prompt-history，`upstream` = Xiaofei-fei/dsh-prompt-history（只读上游）。主分支 main。
 
 ## 配置数据通路（唯一真源是宿主）
@@ -98,15 +99,15 @@
 ### 门禁清单
 
 ```sh
-node node_modules/typescript/bin/tsc --noEmit            # 类型
-node --experimental-strip-types --test test/*.test.ts    # 23 项纯函数测试
-pnpm build                                               # 两步构建
-npm pack --dry-run                                       # 产物清单核对
+node node_modules/typescript/bin/tsc --noEmit             # 类型
+node --experimental-strip-types --test test/*.test.ts     # 26 项纯函数测试（prefs 16 + history 10）
+pnpm build                                                # 两步构建
+npm pack --dry-run                                        # 产物清单核对（README.md + README.zh.md）
 ```
 
 ## 发布流程
 
-1. 更新 `CHANGELOG.md` 与四语言 README；bump `package.json` 版本。
+1. 更新 `CHANGELOG.md` 与双语 README；bump `package.json` 版本（2.1.0 起主 README 英文、`README.zh.md` 中文）。
 2. 跑完「门禁清单」+ 隔离实例浏览器验收。
 3. `git commit` → `git tag -a vX.Y.Z -m "..."` → `git push origin main` → `git push origin vX.Y.Z`。
 4. CI（push main）与 Release（push tag）自动触发；Release job 执行 `pnpm publish` + `gh release create`。
@@ -114,6 +115,7 @@ npm pack --dry-run                                       # 产物清单核对
    - `fetch('https://registry.npmjs.org/@wenaixi/<pkg>').then(r=>r.json())` 查 `dist-tags.latest` 与新版本存在；
    - `gh release view vX.Y.Z` 查 Release 与资产。
    - 不要只信 `npm view`：镜像 registry 会假阴性。
+   - Release 日志若出现 `Skipped OIDC: ERR_PNPM_AUTH_TOKEN_EXCHANGE (404)` 是 OIDC 尝试失败，随后 `✅ Published package` 即 token 方式发布成功，无需处理。
 
 ## 历史交互（2026-10-05 调研，已落地的部分见下节）
 
