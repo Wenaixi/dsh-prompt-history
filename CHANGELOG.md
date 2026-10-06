@@ -8,8 +8,15 @@
 
 ### 修复
 
-- **解除前导命令认领态下行内斜杠技能补全压制**：宿主命令系统（如 `/plan`）在空格认领后进入 `claimed` 阶段，其底层 `detectTrigger` 硬编码规定 `if (guard.tier === "claimed") continue`，将后续所有斜杠触发直接抹杀，导致 `/plan /dsh-plugin-dev` 或 `/plan /browser-harness` 无法弹出补全菜单。本插件在客户端动态注入 `inputTriggers` 服务并包装控制器 `track` 方法，当处于 `claimed` 但光标处检测到行内斜杠触发时，自动将 `tier` 放宽为 `plain`，彻底恢复行内技能补全弹窗能力。
-- **建议菜单让位选择器增强**：扩展 `OPEN_MENU` 为 `[role="listbox"], [data-trigger-menu]`，在宿主菜单骨架屏加载窗口期同样 100% 让位，杜绝按键冲突。
+- **解除前导命令认领态下行内斜杠技能补全压制**：`/plan` 这类带参命令在按空格后被宿主认领，输入框进入 `claimed` 阶段，其底层 `detectTrigger` 有一行硬编码 `if (guard.tier === "claimed") continue`，把后续所有斜杠一律当成命令参数文本，导致 `/plan /dsh-plugin-dev`、`/plan /browser-harness` 敲不出任何补全（主症状）。插件注入 `inputTriggers` 服务并包装每会话控制器的 `track`：只要光标位于「段前有正文的行内斜杠」，就把守卫降级回 `plain` 让宿主补全管线照常跑。判定逻辑收敛在 `claim-guard.ts` 的 `hasInlineSlash`（纯函数，5 项单测），边界语义：
+  - `/plan /ds`、`/plan /dsh-plugin-dev` 命中 → 正常弹补全；
+  - `/plan`、`/plan `、`/plan off` 不命中 → 认领令牌与纯文本参数不受影响；
+  - 行内斜杠是否是真触发符仍由宿主 `boundaryOk` 裁决，URL、`//` 照旧被抑制。
+- **建议菜单让位选择器增强**：`OPEN_MENU` 扩为 `[role="listbox"], [data-trigger-menu]`，在宿主菜单骨架屏尚未挂载 listbox 的加载窗口期同样让位，消除按键抢占。
+
+### 验收
+
+隔离实例 `prompt-history-e2e-v3` + 本机 Chrome/CDP，12 项全绿（主症状、六个边界、前导技能与命令菜单未回归、URL 不误触发、双击 Esc 开面板与清空、方向键历史往返、无控制台错误），并在修复前的 `34a60e5` 源码上做对照确认症状可复现（焐热命令目录后 `/plan /ds` 的 listbox 为 0）。
 
 ## [2.2.1] - 2026-10-06
 

@@ -78,8 +78,9 @@ Open **Plugins → `@wenaixi/dsh-prompt-history` → configuration** (persisted 
 
 - **History comes from the session's own message log**: reads the conversation snapshot's user nodes (`user` / `steering`) and appends as they land — strictly consistent with the transcript, persisted with the session, survives page reloads, and needs no configuration or extra storage. With "Cross-session memory" on it seeds from browser localStorage (capped by the max-history setting) and dedupes against the whole ring on every append.
 - **Consecutive duplicates collapse**; browse state resets on session switch.
+- **Inline slash completion survives a claimed command**: the DSH Host suppresses every `/` trigger while a leading command owns the draft (`/plan ` puts the composer in its `claimed` phase), so on a stock Host typing `/plan /browser-harness` shows nothing. This plugin widens that guard back to `plain` whenever the caret sits on an inline slash, which is what makes `/plan /skill-name` suggestions work as you'd expect.
 - Fully localized (中文 / English): settings, toolbar, feedback pills, history list all follow the DSH app locale.
-- The client bundle is ~14 KB gzipped and depends only on the official `@deepseek-ai/*` peer packages.
+- The client bundle is ~25 KB gzipped and depends only on the official `@deepseek-ai/*` peer packages.
 
 ## Known limitations
 
