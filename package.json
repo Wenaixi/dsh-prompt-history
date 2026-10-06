@@ -1,6 +1,6 @@
 {
   "name": "@wenaixi/dsh-prompt-history",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Terminal-style prompt history, selection copy/quote and right-click paste for the DSH composer (zh/en).",
   "keywords": [
     "dsh",
@@ -67,6 +67,7 @@
     "lib/types/**/*.d.ts",
     "src",
     "cordis.patch.yml",
+    "CHANGELOG.md",
     "README.md",
     "README.en.md",
     "README.es.md",

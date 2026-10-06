@@ -22,8 +22,8 @@
 
 | 表面 | 状态 |
 |---|---|
-| DSH 版本 | 目标为 **0.2.0-rc.2**；客户端配置卡片使用 `plugins.bundle.config` 与 Host `Config` schema |
-| 平台 | Web GUI（客户端插件；设置由 DSH Host 配置持久化；历史数据仍按功能需要使用浏览器本地存储） |
+| DSH 版本 | 目标为 **0.2.0-rc.2**；客户端配置卡片使用 `plugins.bundle.config` 与 Host `Config` schema，UI 走官方 `SettingsForm` 体系 |
+| 平台 | Web GUI（客户端插件；设置由 DSH Host 配置持久化；跨会话历史存浏览器本地） |
 | Node | `>=20` |
 | 模型 | 任意（不发起模型请求 —— 纯 UI 行为） |
 | 界面语言 | 中文 / English（跟随 DSH 应用语言，设置页可切换） |
@@ -61,15 +61,15 @@ dsh plugin --profile web add @wenaixi/dsh-prompt-history
 
 ## 配置
 
-打开 **插件 → `@wenaixi/dsh-prompt-history` → 配置**（由 DSH 宿主配置持久化；旧版浏览器设置会在首次打开时自动迁移）：
+打开 **插件 → `@wenaixi/dsh-prompt-history` → 配置**（由 DSH 宿主配置持久化到 `cordis.patch.yml`；旧版浏览器设置会在首次打开时自动迁移）。配置卡是官方 `SettingsForm`：改动只进草稿，点「保存」才一次写入宿主：
 
 | 选项 | 默认 | 说明 |
 |---|---|---|
-| 复制方式（选中文字时） | `工具栏复制` | `工具栏`（推荐，点击才写剪贴板）/ `选中即自动复制`（终端风格） |
-| 跨会话历史记忆 | 关 | ↑/↓ 历史在会话间保持，历史数据存于浏览器本地，上限 200 条 |
+| 选中文本后 | `弹出工具栏` | `什么都不做` / `弹出工具栏`（点击才写剪贴板）/ `选中即复制`（终端风格） |
+| 打开历史列表 | `两者都要` | `只用 Ctrl+R` / `只用双击 Esc` / `两者都要` |
+| 上下键历史 | 开 | 关闭后 ↑/↓、Ctrl+R 与双击 Esc 全部交还宿主 |
+| 跨会话记忆 | 关 | ↑/↓ 历史在会话间保持，存浏览器本地，上限 200 条 |
 | 右键直接粘贴 | 开 | 关闭后右键恢复浏览器原生菜单 |
-
-↑/↓ 历史始终开启，不随以上开关变化。
 
 ## 特性
 
@@ -91,7 +91,7 @@ pnpm run typecheck   # tsc --noEmit
 pnpm run build       # tsc（lib/types）+ tsdown（lib/index.js / lib/invariant.js / lib/client.js）
 ```
 
-浏览器半区（`src/client/`）注册在 `conversation.input.right` 槽位，构建产物为 DSH `__ModuleLoader__` 闭包格式，外部依赖仅 `react`（其余由浏览器模块表提供）。文案字典在 `src/client/locales.ts`（`zh` 为准、`en` 键位对齐），通过 `ctx.locale.register` 注册。
+浏览器半区（`src/client/`）注册在 `conversation.input.right` 槽位与插件详情页配置卡（`plugins.bundle.config`），构建产物为 DSH `__ModuleLoader__` 闭包格式，外部依赖仅 `react` 与官方 `@deepseek-ai/*` peer 包（其余由浏览器模块表提供）。配置卡走官方 `SettingsForm` 体系（`SettingsCardController` 做 staged 草稿与冲突栅栏）。文案字典在 `src/client/locales.ts`（`zh` 为准、`en` 键位对齐），通过 `ctx.locale.register` 注册。
 
 ## 原理
 

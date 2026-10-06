@@ -22,8 +22,8 @@
 
 | Surface | Status |
 |---|---|
-| DSH versions | Verified on **0.1.1-rc.2 / 0.1.2-rc.1 / 0.1.5-rc.1** (web profile); node reading is normalized across generations (old `session.nodes` / 0.1.2 `legacy.nodes` / desktop 2.0.x `order`+store with `data.content`), so desktop 2.0.x is covered too |
-| Platform | Web GUI only (client plugin; browser-local state; no network, no native code) |
+| DSH versions | Targets **0.2.0-rc.2**; the configuration card uses `plugins.bundle.config` with the Host `Config` schema and the official `SettingsForm` shell |
+| Platform | Web GUI only (client plugin; settings are persisted by the DSH Host, cross-session history stays in browser local storage) |
 | Node | `>=20` |
 | Model | Any (no model requests — pure UI behavior) |
 | UI language | 中文 / English (follows the DSH app locale, switchable in Settings) |
@@ -60,15 +60,15 @@ dsh plugin --profile web add @wenaixi/dsh-prompt-history
 
 ## Configuration
 
-Open **Settings → `>_ Terminal Input`** (stored in browser localStorage, effective immediately):
+Open **Plugins → `@wenaixi/dsh-prompt-history` → configuration** (persisted by the DSH Host into `cordis.patch.yml`; legacy browser settings migrate on first open). The card is the official `SettingsForm`: edits stay a staged draft until you click Save, which writes the Host in one revision-fenced mutation.
 
 | Option | Default | Meaning |
 |---|---|---|
-| Copy mode (on selection) | `Toolbar copy` | `Toolbar` (recommended; writes the clipboard only on click) / `Auto copy on select` (terminal-style) |
-| Cross-session history | Off | Up/Down history persists across sessions in browser localStorage (cap 200) |
+| After selecting text | `Show a toolbar` | `Nothing` / `Show a toolbar` (writes the clipboard only on click) / `Copy immediately` (terminal-style) |
+| Open history list | `Both` | `Ctrl+R only` / `Double Escape only` / `Both` |
+| Up/Down history | On | Off hands ↑/↓, Ctrl+R and double Escape back to the Host |
+| Cross-session memory | Off | Up/Down history persists across sessions in browser local storage (cap 200) |
 | Right-click paste | On | Off restores the browser's native context menu |
-
-Up/Down history is always on, independent of these switches.
 
 ## Features
 
@@ -89,7 +89,7 @@ pnpm run typecheck   # tsc --noEmit
 pnpm run build       # tsc (lib/types) + tsdown (lib/index.js / lib/invariant.js / lib/client.js)
 ```
 
-The browser half (`src/client/`) registers into the `conversation.input.right` slot; the build emits the DSH `__ModuleLoader__` closure format with `react` as the only external (everything else comes from the browser module table). Copy dictionaries live in `src/client/locales.ts` (`zh` authoritative, `en` key-parity) and register via `ctx.locale.register`.
+The browser half (`src/client/`) registers into the `conversation.input.right` slot and the plugin-detail configuration card (`plugins.bundle.config`); the build emits the DSH `__ModuleLoader__` closure format with `react` and the official `@deepseek-ai/*` peer packages as externals (everything else comes from the browser module table). The card uses the official `SettingsForm` shell with `SettingsCardController` for staged drafts and revision fencing. Copy dictionaries live in `src/client/locales.ts` (`zh` authoritative, `en` key-parity) and register via `ctx.locale.register`.
 
 ## How it works
 

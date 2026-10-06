@@ -22,7 +22,8 @@
 
 | Superfície | Estado |
 |---|---|
-| Plataforma | Somente Web GUI (plugin de cliente; estado local do navegador; sem rede, sem código nativo) |
+| Versões do DSH | Direcionado à **0.2.0-rc.2**; o cartão de configuração usa `plugins.bundle.config` com o schema `Config` do Host e o invólucro oficial `SettingsForm` |
+| Plataforma | Somente Web GUI (plugin de cliente; ajustes persistidos pelo Host do DSH; histórico entre sessões permanece no armazenamento local do navegador) |
 | Node | `>=20` |
 | Modelo | Qualquer (não faz requisições ao modelo — comportamento puro de UI) |
 | Idioma da interface | 中文 / English (segue o idioma do app DSH, alterável em Configurações) |
@@ -59,15 +60,15 @@ dsh plugin --profile web add @wenaixi/dsh-prompt-history
 
 ## Configuração
 
-Abra **Configurações → `>_ Terminal Input`** (armazenado em localStorage do navegador, efeito imediato):
+Abra **Plugins → `@wenaixi/dsh-prompt-history` → configuração** (persistido pelo Host do DSH em `cordis.patch.yml`; os ajustes antigos do navegador migram na primeira abertura). O cartão é o `SettingsForm` oficial: as alterações ficam em um rascunho até você clicar em Salvar, que grava no Host em uma única mutação com trava de revisão.
 
 | Opção | Padrão | Significado |
 |---|---|---|
-| Modo de cópia (ao selecionar) | `Barra de ferramentas` | `Barra` (recomendado; grava na área de transferência só ao clicar) / `Copiar automaticamente ao selecionar` (estilo terminal) |
-| Histórico entre sessões | Desligado | O histórico de ↑/↓ persiste entre sessões em localStorage (limite 200) |
+| Ao selecionar texto | `Mostrar barra` | `Nada` / `Mostrar barra` (grava na área de transferência só ao clicar) / `Copiar imediatamente` (estilo terminal) |
+| Abrir lista de histórico | `Ambas` | `Somente Ctrl+R` / `Somente Esc duplo` / `Ambas` |
+| Histórico ↑/↓ | Ligado | Desligado devolve ↑/↓, Ctrl+R e Esc duplo ao Host |
+| Memória entre sessões | Desligado | O histórico de ↑/↓ persiste entre sessões no armazenamento local (limite 200) |
 | Colar com botão direito | Ligado | Desligado restaura o menu de contexto nativo do navegador |
-
-O histórico de ↑/↓ está sempre ligado, independentemente dessas alternâncias.
 
 ## Recursos
 
@@ -88,7 +89,7 @@ pnpm run typecheck   # tsc --noEmit
 pnpm run build       # tsc (lib/types) + tsdown (lib/index.js / lib/invariant.js / lib/client.js)
 ```
 
-A metade do navegador (`src/client/`) se registra no slot `conversation.input.right`; o build emite o formato de closure `__ModuleLoader__` do DSH com `react` como único externo (o resto vem da tabela de módulos do navegador). Os dicionários vivem em `src/client/locales.ts` (`zh` autoritativo, `en` com paridade de chaves) e se registram via `ctx.locale.register`.
+A metade do navegador (`src/client/`) se registra no slot `conversation.input.right` e no cartão de configuração do detalhe do plugin (`plugins.bundle.config`); o build emite o formato de closure `__ModuleLoader__` do DSH com `react` e os pacotes peer oficiais `@deepseek-ai/*` como externos. O cartão usa o invólucro `SettingsForm` oficial com `SettingsCardController` para rascunhos e trava de revisão. Os dicionários vivem em `src/client/locales.ts` (`zh` autoritativo, `en` com paridade de chaves) e se registram via `ctx.locale.register`.
 
 ## Como funciona
 

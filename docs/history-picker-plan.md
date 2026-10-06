@@ -1,6 +1,6 @@
 # 输入历史列表选择器：深度实现计划
 
-日期：2026-10-05　仓库：dsh-prompt-history　状态：计划已定，未动手
+日期：2026-10-05　仓库：dsh-prompt-history　状态：**已实现**（2026-10-05 完成全部六阶段，隔离 profile prompt-history-e2e-v3 验收通过；2026-10-06 设置界面迁移到官方 SettingsForm 体系后回归通过）
 
 ## 目标
 
