@@ -108,20 +108,64 @@ export function editorSelectedText(host: HTMLTextAreaElement | HTMLElement): str
   return sel.toString()
 }
 
+/**
+ * 光标在 contenteditable 里的行号（0 起）。
+ *
+ * Lexical 的多行文本不是 `\n` 而是 `<br>` 元素（实测 `textContent` 挤成一行），
+ * 所以不能靠换行符判断行。做法：把「host 开头 → 光标锚点」克隆成 fragment，
+ * 数里面有几个 `<br>`，那就是光标所在行。锚点在空段落占位 `<br>` 之后或直接
+ * 挂在 host 边界时该段一个 `<br>` 都没有，行号就是 0（第一行）——空输入框因此
+ * 也能被 ↑ 接管（这正是「空框调出历史」的核心路径）。
+ */
+function contentEditableCaretLine(host: HTMLElement): number {
+  const sel = document.getSelection()
+  if (sel === null || sel.rangeCount === 0) return 0
+  const anchor = sel.anchorNode
+  if (anchor === null || !host.contains(anchor)) return 0
+  if (anchor === host) return 0 // 空内容边界上的光标：第一行
+  const range = document.createRange()
+  range.selectNodeContents(host)
+  try {
+    range.setEnd(anchor, sel.anchorOffset)
+  } catch {
+    return 0
+  }
+  const fragment = range.cloneContents()
+  return fragment.querySelectorAll('br').length
+}
+
+/**
+ * contenteditable 里的总行数。
+ *
+ * 每行之间是一个 `<br>`，所以 `行数 = <br> 数 + 1`；唯一的例外是整个编辑器
+ * 只有一个空段落占位 `<br>`（Lexical 的空输入框结构）时仍是 1 行。
+ */
+function contentEditableLineCount(host: HTMLElement): number {
+  const brs = host.querySelectorAll('br').length
+  if ((host.textContent ?? '') === '' && brs === 1) return 1
+  return brs + 1
+}
+
 /** Whether the caret sits on the first line of the draft (or the draft is single-line). */
 export function isCaretOnFirstLine(host: HTMLTextAreaElement | HTMLElement): boolean {
-  const text = editorText(host)
-  const firstBreak = text.indexOf('\n')
-  if (firstBreak === -1) return true
-  return editorCaretOffset(host) <= firstBreak
+  if (host instanceof HTMLTextAreaElement) {
+    const text = editorText(host)
+    const firstBreak = text.indexOf('\n')
+    if (firstBreak === -1) return true
+    return editorCaretOffset(host) <= firstBreak
+  }
+  return contentEditableCaretLine(host) === 0
 }
 
 /** Whether the caret sits on the last line of the draft (or the draft is single-line). */
 export function isCaretOnLastLine(host: HTMLTextAreaElement | HTMLElement): boolean {
-  const text = editorText(host)
-  const lastBreak = text.lastIndexOf('\n')
-  if (lastBreak === -1) return true
-  return editorCaretOffset(host) > lastBreak
+  if (host instanceof HTMLTextAreaElement) {
+    const text = editorText(host)
+    const lastBreak = text.lastIndexOf('\n')
+    if (lastBreak === -1) return true
+    return editorCaretOffset(host) > lastBreak
+  }
+  return contentEditableCaretLine(host) === contentEditableLineCount(host) - 1
 }
 
 /** The editor caret's offset into the draft text. */
