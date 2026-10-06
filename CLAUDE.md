@@ -3,7 +3,7 @@
 ## 项目定位
 
 - 包名：`@wenaixi/dsh-prompt-history`（scoped；npm 与 GitHub 均已发布，latest 见 CHANGELOG）。
-- 功能：DSH 对话输入框的终端式交互——Claude Code 式上下键历史、Ctrl+R 历史列表、选中文本复制或引用、右键粘贴。
+- 功能：DSH 对话输入框的终端式交互——Claude Code 式上下键历史、双击 Esc 历史列表（搜索/模糊/相对时间/宽屏预览）、选中文本复制或引用、右键粘贴。
 - 形态：Host 半侧只声明配置 schema；浏览器半侧交付交互、配置卡与文案。零第三方依赖。
 - 文档：主 README 英文、`README.zh.md` 中文；CHANGELOG 中文。
 - 仓库：`origin` = Wenaixi/dsh-prompt-history，`upstream` = Xiaofei-fei/dsh-prompt-history（只读上游）。主分支 main。
