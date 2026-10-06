@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-10-06
+
+### 修复
+
+- **双击 Esc 关闭时 Esc 让位宿主**：`doubleEsc=false` 时连按 Esc 不再被插件消费，宿主自行关闭其浮层/菜单。
+- **宽屏历史面板右侧完整预览**：窗口 ≥1000px 时在列表右侧显示高亮条目的完整内容（最多 6 行，超出显示 `… +N more lines`），对齐 Claude Code `HistorySearchDialog` 的 preview。
+
 ## [2.2.0] - 2026-10-06
 
 ### 变更
@@ -257,7 +264,8 @@
 
 - 选中即复制（任意选中方式）。
 
-[Unreleased]: https://github.com/Wenaixi/dsh-prompt-history/compare/v2.2.0...HEAD
+[Unreleased]: https://github.com/Wenaixi/dsh-prompt-history/compare/v2.2.1...HEAD
+[2.2.1]: https://github.com/Wenaixi/dsh-prompt-history/compare/v2.2.0...v2.2.1
 [2.2.0]: https://github.com/Wenaixi/dsh-prompt-history/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/Wenaixi/dsh-prompt-history/compare/v2.0.2...v2.1.0
 [2.0.2]: https://github.com/Wenaixi/dsh-prompt-history/compare/v2.0.1...v2.0.2
