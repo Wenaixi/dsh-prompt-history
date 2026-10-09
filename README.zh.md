@@ -125,6 +125,7 @@ dsh plugin --profile web remove @wenaixi/dsh-prompt-history
 | 模糊匹配 | `fuzzyMatch` | `true` | 历史列表过滤时允许字符子序列模糊匹配 |
 | 跨会话记忆 | `globalHistory` | `false` | 开启后历史持久化到浏览器 localStorage，跨会话保留 |
 | 右键直接粘贴 | `rightClickPaste` | `true` | 输入框内右键直接粘贴剪贴板内容，关闭则显示原生菜单 |
+| 忽略前导空格 | `ignoreLeadingSpace` | `false` | 以空格开头的提示词不记录入历史（对齐 Bash ignorespace，敏感指令阅后即焚） |
 
 配置数据流通路：
 ```
@@ -152,7 +153,7 @@ src/
     feedback.ts            # 复制成功与清空提示 Toast 浮层
     locales.ts             # 中英文双语本地化字典
 locale/                    # 插件元数据多语言文件（zh.json / en.json）
-test/                      # 纯函数单元测试集（35 项测试）
+test/                      # 纯函数单元测试集（48 项测试）
 cordis.patch.yml           # 默认配置补丁声明
 package.json               # 模块清单与平台规范声明
 ```
@@ -165,7 +166,7 @@ package.json               # 模块清单与平台规范声明
 # 1. 类型检查
 node node_modules/typescript/bin/tsc --noEmit
 
-# 2. 纯函数单元测试（35 项全绿）
+# 2. 纯函数单元测试（48 项全绿）
 node --experimental-strip-types --test test/*.test.ts
 
 # 3. 双步构建：tsc 类型输出 + tsdown 模块打包

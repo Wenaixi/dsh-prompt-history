@@ -38,7 +38,7 @@
 
 ### cordis.patch.yml 的 config 必须写全
 
-八个字段全写、且与 `src/index.ts` schema 默认值逐字段一致。config-editor 写入前把「组合后的条目配置」与「用户提交的新值」深比较，不一致即判为被更高层覆盖并返回 `settings/rejected`。少写字段同样被拒——用户第一次改的正是缺失那项。
+九个字段全写、且与 `src/index.ts` schema 默认值逐字段一致。config-editor 写入前把「组合后的条目配置」与「用户提交的新值」深比较，不一致即判为被更高层覆盖并返回 `settings/rejected`。少写字段同样被拒——用户第一次改的正是缺失那项。
 
 ## 配置字段（全部 `volatile()`）
 
@@ -52,6 +52,7 @@
 | relativeTime | bool | true | 历史列表行首相对时间（5m/3h/2d） |
 | fuzzyMatch | bool | true | 过滤允许字符子序列模糊（exact 在前） |
 | globalHistory | bool | false | 历史跨会话保留（localStorage，受 maxHistoryItems 约束） |
+| ignoreLeadingSpace | bool | false | 前导空格提示词不记录入历史（对齐 Bash ignorespace，敏感指令阅后即焚） |
 
 - 只有 volatile 字段会被投影成表单；非 volatile 字段写入抛错。
 - 旧 `copyOnSelect` 兼容：true → auto，false → toolbar；`copyMode=off` 是合法新值，不被规范化掉。
@@ -61,13 +62,14 @@
 
 | 文件 | 职责 |
 |---|---|
-| `claim-guard.ts` | 纯函数 `hasInlineSlash`：认领态行内斜杠判定（本轮新增） |
-| `prefs-model.ts` | 纯函数：DEFAULT_PREFS、normalizePrefs、parseLegacyPrefs、prefsOps、planLegacyMigration、prefsEqual、draftDiffOps |
-| `prefs.ts` | 宿主表单快照投影，发布给功能组件；表单未就绪返回默认值，绝不读旧 localStorage |
+| `claim-guard.ts` | 纯函数 `hasInlineSlash`：认领态行内斜杠判定 |
+| `prefs.ts` | 纯模型规范化与单一真源快照 Store；发布给功能组件与卡片控制器，折叠消除转运层 |
 | `card-controller.ts` | `SettingsCardController`：快照投影成 UI 状态、操作即写、失败标记、代际计数 |
 | `SettingsCard.tsx` | 配置卡：自绘外壳（不可用/只读/失败提示）+ 官方 `Switch` + 自绘单选块 |
-| `InputHistory.tsx` | 交互主体：历史召回、列表浮层、复制引用、右键粘贴 |
-| `history-model.ts` / `nodes.ts` / `editor.ts` / `feedback.ts` / `i18n.ts` | 纯模型 / 节点读取 / 编辑器访问 / 浮层 / 非 React 取词 |
+| `history-engine.ts` | 纯 TypeScript 无头历史状态机：存储环 FIFO 截断、Claude Code 浏览、双击 Esc、输入法差量搜索、前导空格过滤 |
+| `InputHistory.tsx` | 交互薄壳：下沉核心状态机至 `PromptHistoryEngine`，专职按键事件捕获与划词/右键粘贴监听 |
+| `editor.ts` | 编辑器 DOM 适配：段落 `<p>` 换行与软换行 `<br>` 视觉行精准判定，杜绝多行误吞 |
+| `history-model.ts` / `nodes.ts` / `feedback.ts` / `i18n.ts` | 纯模型 / 节点读取 / 浮层反馈 / 非 React 取词 |
 | `index.ts` | 注册 `conversation.input.right` 槽位、配置卡、`inputTriggers` 守卫放宽 |
 
 - 一次性迁移判据是宿主 `user` 层：空（含空对象）表示从未写过，此时才提交旧 localStorage。
@@ -135,7 +137,7 @@
 
 ```sh
 node node_modules/typescript/bin/tsc --noEmit             # 类型
-node --experimental-strip-types --test test/*.test.ts     # 35 项纯函数测试
+node --experimental-strip-types --test test/*.test.ts     # 48 项纯函数测试
 pnpm build                                                # 两步构建
 npm pack --dry-run --json                                # 产物清单（输出前混着 prepare 日志，从 '[' 切）
 ```
@@ -169,6 +171,7 @@ npm pack --dry-run --json                                # 产物清单（输出
 
 ## 决策记录
 
+- **2026-10-09 架构深度重构与精细化演进**：1. 修复 Lexical 段落换行（<p> 无 br）导致多行文本被误吞的历史隐患，加固 editor.ts；2. 抽离纯 TypeScript 状态机 PromptHistoryEngine，收拢 8 个 Ref，建立 48 项纯 Node 毫秒级单测护城河，InputHistory.tsx 精简过半；3. 折叠 prefs-model.ts 至单一真源 prefs.ts，杜绝双重订阅时序撕裂；4. 四端对齐落地高价值杀手级精细化配置 ignoreLeadingSpace（前导空格不入历史，对齐 Bash ignorespace 工业规范）。
 - **2026-10-06 修复认领态行内斜杠补全（v2.2.2）**：Playwright 双实例对照定位到 `claimed` 档压制。补丁注入 `inputTriggers` 包装 `track`，判定收敛为 `claim-guard.ts` 的纯函数 `hasInlineSlash`（5 项单测）。隔离实例 12 项验收全绿，并在 `34a60e5` 源码上做「焐热命令目录」的严格对照确认症状可复现。
 - **2026-10-06 复刻 Claude Code 上下键历史与双击 Esc 语义**：↑/↓ 改为顺序浏览（↑ 从最新往回、到底不环绕；↑ 光标行首、↓/恢复草稿行尾；多行只在首/末行接管）。发现两个宿主细节：Lexical 多行换行是 `<br>`；空输入框有占位 `<br>` 不能算第二行。
 - **2026-10-06 去掉保存按钮，改动自动保存**：配置卡改为自绘外壳 + 操作即写。删除草稿机、冲突栅栏与 `save/saving/conflict/draftHint` 文案键。

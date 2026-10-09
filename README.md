@@ -125,6 +125,7 @@ The panel features a self-drawn shell implementing write-on-change semantics wit
 | Fuzzy matching | `fuzzyMatch` | `true` | Enables character subsequence fuzzy filtering in history search |
 | Cross-session memory | `globalHistory` | `false` | Retains history across sessions via browser `localStorage` |
 | Right-click paste | `rightClickPaste` | `true` | Pastes clipboard directly on right-click; off restores context menu |
+| Ignore leading space | `ignoreLeadingSpace` | `false` | Omits prompts with leading space from history (matches Bash ignorespace for privacy) |
 
 Configuration data flow:
 ```
@@ -152,7 +153,7 @@ src/
     feedback.ts            # Toast notifications for copy feedback and clear hints
     locales.ts             # Bilingual i18n dictionaries (zh / en)
 locale/                    # Plugin metadata i18n files (zh.json / en.json)
-test/                      # Pure functional unit test suite (35 passing tests)
+test/                      # Pure functional unit test suite (48 passing tests)
 cordis.patch.yml           # Default profile patch declaration
 package.json               # Module manifest and platform contracts
 ```

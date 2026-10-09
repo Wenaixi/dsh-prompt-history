@@ -29,7 +29,7 @@
 # 门禁 1：TypeScript 静态类型检查
 node node_modules/typescript/bin/tsc --noEmit
 
-# 门禁 2：纯函数单元测试集（35 项测试）
+# 门禁 2：纯函数单元测试集（48 项测试）
 node --experimental-strip-types --test test/*.test.ts
 
 # 门禁 3：双步构建（tsc 声明导出 + tsdown 产物构建）

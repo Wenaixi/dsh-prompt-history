@@ -92,17 +92,7 @@ function intOf(value: unknown, fallback: number): number {
 export function normalizePrefs(raw: unknown): PluginPrefs {
   if (!isRecord(raw)) return { ...DEFAULT_PREFS }
   return {
-  return {
     copyMode: copyModeOf(raw.copyMode),
-    rightClickPaste: boolOf(raw.rightClickPaste, DEFAULT_PREFS.rightClickPaste),
-    historyEnabled: boolOf(raw.historyEnabled, DEFAULT_PREFS.historyEnabled),
-    doubleEsc: boolOf(raw.doubleEsc, DEFAULT_PREFS.doubleEsc),
-    maxHistoryItems: intOf(raw.maxHistoryItems, DEFAULT_PREFS.maxHistoryItems),
-    relativeTime: boolOf(raw.relativeTime, DEFAULT_PREFS.relativeTime),
-    fuzzyMatch: boolOf(raw.fuzzyMatch, DEFAULT_PREFS.fuzzyMatch),
-    globalHistory: boolOf(raw.globalHistory, DEFAULT_PREFS.globalHistory),
-    ignoreLeadingSpace: boolOf(raw.ignoreLeadingSpace, DEFAULT_PREFS.ignoreLeadingSpace),
-  }
     rightClickPaste: boolOf(raw.rightClickPaste, DEFAULT_PREFS.rightClickPaste),
     historyEnabled: boolOf(raw.historyEnabled, DEFAULT_PREFS.historyEnabled),
     doubleEsc: boolOf(raw.doubleEsc, DEFAULT_PREFS.doubleEsc),
