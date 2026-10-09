@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Terminal-style input",
-    "description": "Terminal-style prompt history for the input box: Up/Down recalls the previous or next prompt, typing a prefix first narrows Up to history starting with it, and Ctrl+R searches backwards by keyword. Selecting text can raise a copy/quote toolbar or copy immediately; right-click pastes the clipboard Chinese and English, nothing to configure."
+    "title": "Terminal-style Prompt History",
+    "description": "Claude Code-style prompt history, double-Esc picker, selection quote/copy & right-click paste. Zero third-party dependencies, works out of the box."
   }
 }
