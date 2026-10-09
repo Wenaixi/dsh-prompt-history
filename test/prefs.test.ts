@@ -4,7 +4,7 @@ import {
   DEFAULT_PREFS, MAX_HISTORY_MAX, MAX_HISTORY_MIN, normalizePrefs, parseLegacyPrefs,
   planLegacyMigration, prefsOps, draftDiffOps, prefsEqual,
   type PluginPrefs,
-} from '../src/client/prefs-model.ts'
+} from '../src/client/prefs.ts'
 
 test('uses defaults for an empty legacy value', () => {
   assert.deepEqual(parseLegacyPrefs(undefined), DEFAULT_PREFS)

@@ -12,7 +12,7 @@ import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import {
   DEFAULT_PREFS, draftDiffOps, normalizePrefs, planLegacyMigration,
   type PluginPrefs, type PrefOp,
-} from './prefs-model.ts'
+} from './prefs.ts'
 
 /** 旧版浏览器配置载荷的键，只用于一次性迁移读取。 */
 const LEGACY_STORAGE_KEY = 'dsh-prompt-history.prefs'

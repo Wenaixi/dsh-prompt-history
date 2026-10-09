@@ -8,7 +8,7 @@
 import { Button, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { PrefsCardSnapshot } from './card-controller.ts'
-import type { CopyMode, PluginPrefs } from './prefs-model.ts'
+import type { CopyMode, PluginPrefs } from './prefs.ts'
 import type { PromptHistoryKey } from './locales.ts'
 
 export type SettingsCardProps = PropsRuntime<'plugins.bundle.config'>
