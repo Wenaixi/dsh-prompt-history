@@ -166,7 +166,7 @@ Maintains strict engineering discipline with complete type checking, unit tests,
 # 1. Type checking
 node node_modules/typescript/bin/tsc --noEmit
 
-# 2. Pure functional unit tests (35 passing tests)
+# 2. Pure functional unit tests (48 passing tests)
 node --experimental-strip-types --test test/*.test.ts
 
 # 3. Two-stage build: tsc declarations + tsdown bundle
