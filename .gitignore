@@ -1,7 +1,110 @@
+# 依赖与打包临时产物
 node_modules/
 lib/
+dist/
+build/
+*.tgz
+*.tar.gz
 *.tsbuildinfo
+tsconfig.tsbuildinfo
+package-lock.json
+yarn.lock
+
+# 本地项目记忆库与规划草稿
 CLAUDE.md
 .refactor-plan.md
+
+# 环境与敏感凭证
+.env
+.env.*
+!.env.example
+*.local
+*.local.json
+*.local.yml
+*.local.yaml
+
+# DSH 运行时与本地隔离环境
+.DSH_HOME/
+.dsh/
+.dsh-*/
+.dsh-vision-toolkit/
+profiles/
+.worktrees/
+.private-journal/
+undefined/
+dsh-auth-*/
+dsh-token-*
+dsh-*.log
+
+# 本地 AI 工具与工作区状态
+.claude/
+.agents/
+.cursor/
+.windsurf/
 .superpowers/
+.superpowers-*/
 .local/
+.local-*/
+.local-pack/
+.history/
+
+# 跨平台系统缓存
+.DS_Store
+.DS_Store?
+._*
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+desktop.ini
+$RECYCLE.BIN/
+System Volume Information/
+*~
+core
+core.*
+
+# IDE 与编辑器配置
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+*.swp
+*.swo
+*.bak
+*.orig
+*.rej
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# 日志与临时缓存
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+tmp/
+temp/
+.cache/
+*.tmp
+*.spill*
+
+# 测试产物、覆盖率与浏览器真机验收截图
+test-artifacts/
+.verify-shots/
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+coverage/
+.nyc_output/
+junit.xml
+reports/
+expected.json
+actual.json
+*.png
+!assets/**/*.png
+!docs/**/*.png
