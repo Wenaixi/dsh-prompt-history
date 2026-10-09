@@ -34,7 +34,9 @@ export function isEditorTarget(target: EventTarget | null): boolean {
 /** Whether the composer editor currently holds focus. */
 export function editorFocused(): boolean {
   const host = editorHost()
-  return host !== null && document.activeElement === host
+  if (host === null) return false
+  const active = document.activeElement
+  return active === host || (active !== null && host.contains(active))
 }
 
 /** The editor host's current plain text (its own content, not the draft mirror). */
@@ -103,47 +105,82 @@ export function editorSelectedText(host: HTMLTextAreaElement | HTMLElement): str
   }
   const sel = document.getSelection()
   if (sel === null || sel.isCollapsed || sel.rangeCount === 0) return ''
-  const anchorNode = sel.anchorNode
-  if (anchorNode === null || !host.contains(anchorNode)) return ''
+  const { anchorNode, focusNode } = sel
+  if (anchorNode === null || focusNode === null) return ''
+  if (!host.contains(anchorNode) || !host.contains(focusNode)) return ''
   return sel.toString()
 }
 
 /**
- * 光标在 contenteditable 里的行号（0 起）。
- *
- * Lexical 的多行文本不是 `\n` 而是 `<br>` 元素（实测 `textContent` 挤成一行），
- * 所以不能靠换行符判断行。做法：把「host 开头 → 光标锚点」克隆成 fragment，
- * 数里面有几个 `<br>`，那就是光标所在行。锚点在空段落占位 `<br>` 之后或直接
- * 挂在 host 边界时该段一个 `<br>` 都没有，行号就是 0（第一行）——空输入框因此
- * 也能被 ↑ 接管（这正是「空框调出历史」的核心路径）。
+ * 检查 Range 容器内是否存在 <br> 换行符。
  */
-function contentEditableCaretLine(host: HTMLElement): number {
-  const sel = document.getSelection()
-  if (sel === null || sel.rangeCount === 0) return 0
-  const anchor = sel.anchorNode
-  if (anchor === null || !host.contains(anchor)) return 0
-  if (anchor === host) return 0 // 空内容边界上的光标：第一行
-  const range = document.createRange()
-  range.selectNodeContents(host)
+function hasBrInRange(container: Node, startOffset: number, endNode: Node, endOffset: number): boolean {
   try {
-    range.setEnd(anchor, sel.anchorOffset)
+    const range = document.createRange()
+    range.setStart(container, startOffset)
+    range.setEnd(endNode, endOffset)
+    const walker = document.createTreeWalker(range.commonAncestorContainer, NodeFilter.SHOW_ELEMENT)
+    let el = walker.nextNode()
+    while (el !== null) {
+      if (el.nodeName === 'BR' && range.intersectsNode(el)) return true
+      el = walker.nextNode()
+    }
+    return false
   } catch {
-    return 0
+    return false
   }
-  const fragment = range.cloneContents()
-  return fragment.querySelectorAll('br').length
 }
 
 /**
- * contenteditable 里的总行数。
+ * 光标是否位于 contenteditable 编辑器的第一逻辑行。
  *
- * 每行之间是一个 `<br>`，所以 `行数 = <br> 数 + 1`；唯一的例外是整个编辑器
- * 只有一个空段落占位 `<br>`（Lexical 的空输入框结构）时仍是 1 行。
+ * Lexical 的换行模型有两种：
+ * 1. 硬回车生成兄弟段落 <p>（非空段落内部没有 <br>）；
+ * 2. 软换行（Shift+Enter）在段落内插入 <br>。
+ *
+ * 判定依据：
+ * - 若有块级段落（firstElementChild 存在），光标必须位于首个块级子元素内部，且在光标前没有 <br> 软换行；
+ * - 若光标停在 host 根节点边界（空内容），也视为第一行；
+ * - 若无块级子元素（平铺结构），则检查 host 开头到光标之间是否有 <br>。
  */
-function contentEditableLineCount(host: HTMLElement): number {
-  const brs = host.querySelectorAll('br').length
-  if ((host.textContent ?? '') === '' && brs === 1) return 1
-  return brs + 1
+function isContentEditableCaretFirstLine(host: HTMLElement): boolean {
+  const sel = document.getSelection()
+  if (sel === null || sel.rangeCount === 0) return true
+  const anchor = sel.anchorNode
+  if (anchor === null || !host.contains(anchor) || anchor === host) return true
+
+  const firstBlock = host.firstElementChild
+  if (firstBlock !== null) {
+    // 若光标不在首个块级元素内部，绝对不是第一行（例如在第 2 段）
+    if (!firstBlock.contains(anchor)) return false
+    // 若在首个块内，检查首块起点到当前光标之间是否有软换行 <br>
+    return !hasBrInRange(firstBlock, 0, anchor, sel.anchorOffset)
+  }
+
+  // 无块级元素的平铺 fallback：检查 host 起点到光标之间是否有 <br>
+  return !hasBrInRange(host, 0, anchor, sel.anchorOffset)
+}
+
+/**
+ * 光标是否位于 contenteditable 编辑器的最后一行。
+ */
+function isContentEditableCaretLastLine(host: HTMLElement): boolean {
+  const sel = document.getSelection()
+  if (sel === null || sel.rangeCount === 0) return true
+  const anchor = sel.anchorNode
+  if (anchor === null || !host.contains(anchor) || anchor === host) return true
+
+  const lastBlock = host.lastElementChild
+  if (lastBlock !== null) {
+    // 若光标不在末尾块级元素内部，绝对不是最后一行
+    if (!lastBlock.contains(anchor)) return false
+    // 若在末块内，检查光标到末块末尾之间是否有软换行 <br>
+    const endOffset = lastBlock.childNodes.length
+    return !hasBrInRange(anchor, sel.anchorOffset, lastBlock, endOffset)
+  }
+
+  // 无块级元素的平铺 fallback：检查光标到 host 末尾是否有 <br>
+  return !hasBrInRange(anchor, sel.anchorOffset, host, host.childNodes.length)
 }
 
 /** Whether the caret sits on the first line of the draft (or the draft is single-line). */
@@ -154,7 +191,7 @@ export function isCaretOnFirstLine(host: HTMLTextAreaElement | HTMLElement): boo
     if (firstBreak === -1) return true
     return editorCaretOffset(host) <= firstBreak
   }
-  return contentEditableCaretLine(host) === 0
+  return isContentEditableCaretFirstLine(host)
 }
 
 /** Whether the caret sits on the last line of the draft (or the draft is single-line). */
@@ -165,7 +202,7 @@ export function isCaretOnLastLine(host: HTMLTextAreaElement | HTMLElement): bool
     if (lastBreak === -1) return true
     return editorCaretOffset(host) > lastBreak
   }
-  return contentEditableCaretLine(host) === contentEditableLineCount(host) - 1
+  return isContentEditableCaretLastLine(host)
 }
 
 /** The editor caret's offset into the draft text. */
@@ -187,6 +224,20 @@ export function setEditorCaret(host: HTMLTextAreaElement | HTMLElement, offset: 
     host.setSelectionRange(clamp, clamp)
     return
   }
+  // 空输入框或 0 偏移兜底：直接锚定在首段容器起点，防止因找不到 Text 节点静默丢失光标
+  if (offset === 0 || (host.textContent ?? '') === '') {
+    const target = host.firstElementChild ?? host
+    try {
+      const range = document.createRange()
+      range.setStart(target, 0)
+      range.collapse(true)
+      const sel = document.getSelection()
+      sel?.removeAllRanges()
+      sel?.addRange(range)
+    } catch { /* 容错保护 */ }
+    return
+  }
+
   // Collapse the DOM selection inside the host after `offset` text characters.
   const target = Math.max(0, Math.min(offset, (host.textContent ?? '').length))
   const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT)
