@@ -18,3 +18,4 @@
         relativeTime: true
         fuzzyMatch: true
         globalHistory: false
+        ignoreLeadingSpace: false

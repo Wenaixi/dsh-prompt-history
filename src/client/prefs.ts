@@ -32,6 +32,8 @@ export interface PluginPrefs {
   fuzzyMatch: boolean
   /** 上下键历史是否跨会话保留。 */
   globalHistory: boolean
+  /** 以空格开头的提示词不记录入历史（对齐 Bash ignorespace）。 */
+  ignoreLeadingSpace: boolean
 }
 
 export const DEFAULT_PREFS: PluginPrefs = {
@@ -43,6 +45,7 @@ export const DEFAULT_PREFS: PluginPrefs = {
   relativeTime: true,
   fuzzyMatch: true,
   globalHistory: false,
+  ignoreLeadingSpace: false,
 }
 
 /** 历史条数上限的合法区间（对应 schema 的 min/max）。 */
@@ -53,6 +56,7 @@ export const MAX_HISTORY_MAX = 1000
 const FIELDS = [
   'copyMode', 'rightClickPaste', 'historyEnabled', 'doubleEsc',
   'maxHistoryItems', 'relativeTime', 'fuzzyMatch', 'globalHistory',
+  'ignoreLeadingSpace',
 ] as const
 
 /** 旧版浏览器配置里已被 copyMode 取代的字段。 */
@@ -87,7 +91,27 @@ function intOf(value: unknown, fallback: number): number {
  */
 export function normalizePrefs(raw: unknown): PluginPrefs {
   if (!isRecord(raw)) return { ...DEFAULT_PREFS }
-  return {    copyMode: copyModeOf(raw.copyMode),    rightClickPaste: boolOf(raw.rightClickPaste, DEFAULT_PREFS.rightClickPaste),    historyEnabled: boolOf(raw.historyEnabled, DEFAULT_PREFS.historyEnabled),    doubleEsc: boolOf(raw.doubleEsc, DEFAULT_PREFS.doubleEsc),    maxHistoryItems: intOf(raw.maxHistoryItems, DEFAULT_PREFS.maxHistoryItems),    relativeTime: boolOf(raw.relativeTime, DEFAULT_PREFS.relativeTime),    fuzzyMatch: boolOf(raw.fuzzyMatch, DEFAULT_PREFS.fuzzyMatch),    globalHistory: boolOf(raw.globalHistory, DEFAULT_PREFS.globalHistory),  }
+  return {
+  return {
+    copyMode: copyModeOf(raw.copyMode),
+    rightClickPaste: boolOf(raw.rightClickPaste, DEFAULT_PREFS.rightClickPaste),
+    historyEnabled: boolOf(raw.historyEnabled, DEFAULT_PREFS.historyEnabled),
+    doubleEsc: boolOf(raw.doubleEsc, DEFAULT_PREFS.doubleEsc),
+    maxHistoryItems: intOf(raw.maxHistoryItems, DEFAULT_PREFS.maxHistoryItems),
+    relativeTime: boolOf(raw.relativeTime, DEFAULT_PREFS.relativeTime),
+    fuzzyMatch: boolOf(raw.fuzzyMatch, DEFAULT_PREFS.fuzzyMatch),
+    globalHistory: boolOf(raw.globalHistory, DEFAULT_PREFS.globalHistory),
+    ignoreLeadingSpace: boolOf(raw.ignoreLeadingSpace, DEFAULT_PREFS.ignoreLeadingSpace),
+  }
+    rightClickPaste: boolOf(raw.rightClickPaste, DEFAULT_PREFS.rightClickPaste),
+    historyEnabled: boolOf(raw.historyEnabled, DEFAULT_PREFS.historyEnabled),
+    doubleEsc: boolOf(raw.doubleEsc, DEFAULT_PREFS.doubleEsc),
+    maxHistoryItems: intOf(raw.maxHistoryItems, DEFAULT_PREFS.maxHistoryItems),
+    relativeTime: boolOf(raw.relativeTime, DEFAULT_PREFS.relativeTime),
+    fuzzyMatch: boolOf(raw.fuzzyMatch, DEFAULT_PREFS.fuzzyMatch),
+    globalHistory: boolOf(raw.globalHistory, DEFAULT_PREFS.globalHistory),
+    ignoreLeadingSpace: boolOf(raw.ignoreLeadingSpace, DEFAULT_PREFS.ignoreLeadingSpace),
+  }
 }
 
 /** 解析旧 localStorage 载荷（含 copyOnSelect 兼容映射）。 */
@@ -106,6 +130,7 @@ export function parseLegacyPrefs(raw: string | null | undefined): PluginPrefs {
       relativeTime: boolOf(parsed.relativeTime, DEFAULT_PREFS.relativeTime),
       fuzzyMatch: boolOf(parsed.fuzzyMatch, DEFAULT_PREFS.fuzzyMatch),
       globalHistory: boolOf(parsed.globalHistory, DEFAULT_PREFS.globalHistory),
+      ignoreLeadingSpace: boolOf(parsed.ignoreLeadingSpace, DEFAULT_PREFS.ignoreLeadingSpace),
     }
   } catch {
     return { ...DEFAULT_PREFS }

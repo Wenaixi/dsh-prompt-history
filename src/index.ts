@@ -32,6 +32,8 @@ export interface Config {
   fuzzyMatch: boolean
   /** 上下键历史是否跨会话保留。 */
   globalHistory: boolean
+  /** 以空格开头的提示词不记录入历史（对齐 Bash ignorespace）。 */
+  ignoreLeadingSpace: boolean
 }
 
 /**
@@ -50,6 +52,7 @@ export const Config = z.object({
   relativeTime: z.boolean().default(true).volatile(),
   fuzzyMatch: z.boolean().default(true).volatile(),
   globalHistory: z.boolean().default(false).volatile(),
+  ignoreLeadingSpace: z.boolean().default(false).volatile(),
 })
 
 export function apply(ctx: Context, _config: Config): void {

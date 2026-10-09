@@ -24,6 +24,7 @@ test('migrates valid fields independently and maps copyOnSelect', () => {
     relativeTime: true,
     fuzzyMatch: true,
     globalHistory: true,
+    ignoreLeadingSpace: false,
   } satisfies PluginPrefs)
 })
 
@@ -70,6 +71,7 @@ test('normalizes a host value field by field without inheriting copyOnSelect', (
     relativeTime: true,
     fuzzyMatch: true,
     globalHistory: false,
+    ignoreLeadingSpace: false,
   } satisfies PluginPrefs)
 })
 
@@ -83,6 +85,7 @@ test('writes every field as one set operation in a fixed order', () => {
   assert.deepEqual(prefsOps({
     copyMode: 'off', rightClickPaste: false, historyEnabled: false, doubleEsc: false,
     maxHistoryItems: 50, relativeTime: false, fuzzyMatch: false, globalHistory: true,
+    ignoreLeadingSpace: false,
   }), [
     { op: 'set', path: ['copyMode'], value: 'off' },
     { op: 'set', path: ['rightClickPaste'], value: false },
@@ -92,6 +95,7 @@ test('writes every field as one set operation in a fixed order', () => {
     { op: 'set', path: ['relativeTime'], value: false },
     { op: 'set', path: ['fuzzyMatch'], value: false },
     { op: 'set', path: ['globalHistory'], value: true },
+    { op: 'set', path: ['ignoreLeadingSpace'], value: false },
   ])
 })
 
@@ -106,6 +110,7 @@ test('plans one-time migration only while the host has no user layer', () => {
     { op: 'set', path: ['relativeTime'], value: true },
     { op: 'set', path: ['fuzzyMatch'], value: true },
     { op: 'set', path: ['globalHistory'], value: false },
+    { op: 'set', path: ['ignoreLeadingSpace'], value: false },
   ])
   // 已有用户层说明用户或迁移已写过，旧的 localStorage 不得再覆盖。
   assert.equal(planLegacyMigration({ globalHistory: false }, raw), undefined)
@@ -124,6 +129,7 @@ test('treats an empty user layer as never written', () => {
     { op: 'set', path: ['relativeTime'], value: true },
     { op: 'set', path: ['fuzzyMatch'], value: true },
     { op: 'set', path: ['globalHistory'], value: true },
+    { op: 'set', path: ['ignoreLeadingSpace'], value: false },
   ])
 })
 
