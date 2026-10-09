@@ -72,7 +72,8 @@
     "README.md",
     "README.zh.md",
     "locale/*.json",
-    "LICENSE"
+    "LICENSE",
+    "assets/icon.png"
   ],
   "license": "MIT",
   "peerDependencies": {
@@ -119,5 +120,6 @@
     "typecheck": "tsc --noEmit",
     "bundle": "tsdown",
     "watch": "tsdown --watch"
-  }
+  },
+  "icon": "assets/icon.png"
 }
