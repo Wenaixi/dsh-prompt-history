@@ -21,6 +21,7 @@
 | **配置插槽匹配** | `plugins.bundle.config` 插槽 key = 完整包名（`plugin-manager`） | 必须以包名注册，且该 slot 渲染时不带 form，需动态注入获取 |
 | **配置覆写深比较** | 组合条目配置与新值逐字段深比较，不一致报 `settings/rejected` | `cordis.patch.yml` 必须写全 9 个字段且与 Schema 默认值完全一致 |
 | **Volatile 约束** | 仅 `volatile()` 字段投影成表单；非 volatile 写入直接抛错 | 9 个配置项全部声明为 `.volatile()` |
+| **图标体积约束** | 宿主插件元信息加载硬校验 `icon exceeds 256 KiB`（`plugin-manager`） | `assets/icon.png` 必须压制在 256 KiB 以内（基准 256x256 Lanczos 重采样，~78 KiB） |
 
 ---
 
@@ -97,6 +98,7 @@ npm pack --dry-run --json                                # 4. 产物完整性与
 - **CJS Bundle 标识**：`tsdown.config.ts` 的 `ID` 必须严格等于包名 `@wenaixi/dsh-prompt-history`，否则客户端无法激活。
 - **发布白名单**：`package.json` 的 `files` 必须包含双语 README、CHANGELOG、LICENSE、`lib/` 与 `locale/`。
 - **孤儿声明防范**：删除源码文件后必须同步清理 `lib/types/` 下对应的旧 `.d.ts` 与 `.d.ts.map`。
+- **图标体积硬界**：`assets/icon.png` 必须严格控制在 256 KiB 以内（安全水位 ≤100 KiB），杜绝宿主元信息抛错 `icon exceeds 256 KiB`。
 
 ---
 
