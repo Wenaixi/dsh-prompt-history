@@ -89,7 +89,11 @@ export function apply(ctx: ClientContext): void {
   const style = document.createElement('style')
   style.dataset.pluginCss = 'dsh-ph-settings'
   style.textContent = SETTINGS_CSS
-  document.head.appendChild(style)
+  ctx.effect(() => {
+    document.head.appendChild(style)
+    return () => { style.remove() }
+  }, 'dsh-prompt-history: settings styles')
+
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-prompt-history: dictionaries')
   setTranslator(ctx.locale.bind(NS))
   ctx.slots.inject('conversation.input.right', () => ctx.slots.register(
@@ -127,21 +131,26 @@ export function apply(ctx: ClientContext): void {
       | undefined
     const resolve = service?.sessionOf
     if (typeof resolve !== 'function') return
-    // 包一层 sessionOf：每个会话控制器首次取到时补装 track 补丁。
-    service!.sessionOf = (scope: unknown): TriggerPatch | undefined => {
-      const controller = resolve.call(service, scope)
-      if (controller === undefined || typeof controller.track !== 'function') return controller
-      if (patched.has(controller)) return controller
-      patched.add(controller)
-      const hostTrack = controller.track.bind(controller)
-      controller.track = (draft, caret, guard, draftRev) => {
-        // 行内斜杠（光标前最近一个空白之后有 "/"）才放宽；无斜杠的前导认领照旧。
-        if (guard?.tier === 'claimed' && hasInlineSlash(draft, caret)) {
-          return hostTrack(draft, caret, { ...guard, tier: 'plain' }, draftRev)
+    // 包一层 sessionOf：每个会话控制器首次取到时补装 track 补丁，卸载时还原原方法。
+    ctx.effect(() => {
+      service!.sessionOf = (scope: unknown): TriggerPatch | undefined => {
+        const controller = resolve.call(service, scope)
+        if (controller === undefined || typeof controller.track !== 'function') return controller
+        if (patched.has(controller)) return controller
+        patched.add(controller)
+        const hostTrack = controller.track.bind(controller)
+        controller.track = (draft, caret, guard, draftRev) => {
+          // 行内斜杠（光标前最近一个空白之后有 "/"）才放宽；无斜杠的前导认领照旧。
+          if (guard?.tier === 'claimed' && hasInlineSlash(draft, caret)) {
+            return hostTrack(draft, caret, { ...guard, tier: 'plain' }, draftRev)
+          }
+          return hostTrack(draft, caret, guard, draftRev)
         }
-        return hostTrack(draft, caret, guard, draftRev)
+        return controller
       }
-      return controller
-    }
+      return () => {
+        service!.sessionOf = resolve
+      }
+    }, 'dsh-prompt-history: input triggers patch')
   })
 }
