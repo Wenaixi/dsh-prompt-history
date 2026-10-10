@@ -1,10 +1,10 @@
 /**
- * 插件详情页的配置卡：自绘外壳 + 操作即写。
+ * 插件详情页的配置卡：自绘外壳 + 操作即写 + 配置自愈维护。
  *
- * 没有保存按钮：每次操作（开关、单选、恢复默认）都立即写宿主，写入由宿主
- * ConfigForm 排队并做 revision 栅栏，被拒时宿主回读、UI 自动回落到真值。
- * 组件只接收 slot props 与注册方 inject 注入的数据面，不接触 ctx。
+ * 采用四大精细化功能分区（剪贴板联动、历史回溯、历史搜索、健康自愈维护）。
+ * 保存语义为「写即生效」，且自带强力配置自愈重构引擎与容灾提取工具。
  */
+import React, { useState } from 'react'
 import { Button, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { PrefsCardSnapshot } from './card-controller.ts'
@@ -17,6 +17,9 @@ export type SettingsCardProps = PropsRuntime<'plugins.bundle.config'>
     readonly usePrefsCard: <S>(select: (snapshot: PrefsCardSnapshot) => S, equal?: (a: S, b: S) => boolean) => S
     readonly edit: <F extends keyof PluginPrefs>(field: F, next: PluginPrefs[F]) => void
     readonly resetAll: () => void
+    readonly healAndRegenerate: () => Promise<boolean>
+    readonly exportConfigJson: () => string
+    readonly importAndHeal: (text: string) => Promise<boolean>
   }
 
 /** 复制方式的三个候选值，按「什么都不做 → 手动 → 自动」排列。 */
@@ -35,7 +38,7 @@ const MAX_HISTORY_OPTIONS: readonly { value: number; label: string }[] = [
   { value: 1000, label: '1000' },
 ]
 
-/** 一个开关行：标题 + 说明 + 开关。标题在左，说明紧随其下，开关固定在右侧。 */
+/** 一个开关行：标题 + 说明 + 开关。 */
 function ToggleRow(props: {
   title: string
   hint: string
@@ -60,7 +63,7 @@ function ToggleRow(props: {
   )
 }
 
-/** 一组设置：标题 + 若干行。行与行之间只用细分隔线，不套第二层卡片。 */
+/** 一组设置：标题 + 若干行。行与行之间只用细分隔线。 */
 function Group(props: { title: string; children: React.ReactNode }): JSX.Element {
   return (
     <section className="dsh-ph-group">
@@ -70,10 +73,7 @@ function Group(props: { title: string; children: React.ReactNode }): JSX.Element
   )
 }
 
-/**
- * 单选块：几块并列的面板，每块自带标题与说明。选中块用宿主强调色描边。
- * 用 role=radiogroup / radio 而不是原生 radio，是为了同时承载说明文字。
- */
+/** 单选块：几块并列的面板，每块自带标题与说明。 */
 function ChoiceRow(props: {
   title: string
   hint: string
@@ -102,7 +102,7 @@ function ChoiceRow(props: {
               onClick={() => props.onChange(option.value)}
             >
               <span className="dsh-ph-optionTitle">{option.label}</span>
-              <span className="dsh-ph-optionHint">{option.hint}</span>
+              {option.hint ? <span className="dsh-ph-optionHint">{option.hint}</span> : null}
             </button>
           )
         })}
@@ -114,22 +114,103 @@ function ChoiceRow(props: {
 export function SettingsCardSlot(props: SettingsCardProps): JSX.Element | null {
   const { t } = props
   if (props.view !== 'page') return null
+
   const snapshot = props.usePrefsCard((state) => state)
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [importText, setImportText] = useState('')
+  const [copyFeedback, setCopyFeedback] = useState(false)
+  const [healNotice, setHealNotice] = useState<string | null>(null)
+
   if (!snapshot.available) {
     return <p className="dsh-ph-notice" role="status">{t('settings.unavailable')}</p>
   }
+
   const locked = !snapshot.writable
   const value = snapshot.values
+  const health = snapshot.health
+
   const copyOptions = COPY_MODES.map((mode) => ({
     value: mode.value,
     label: t(mode.label),
     hint: t(mode.hint),
   }))
+
+  const handleHeal = async () => {
+    setHealNotice(null)
+    const success = await props.healAndRegenerate()
+    if (success) {
+      setHealNotice(t('settings.health.healed'))
+      setTimeout(() => setHealNotice(null), 4000)
+    }
+  }
+
+  const handleCopyJson = () => {
+    try {
+      void navigator.clipboard.writeText(props.exportConfigJson())
+      setCopyFeedback(true)
+      setTimeout(() => setCopyFeedback(false), 2500)
+    } catch {
+      // 容灾忽略复制异常
+    }
+  }
+
+  const handleImportAndHeal = async () => {
+    if (!importText.trim()) return
+    const success = await props.importAndHeal(importText)
+    if (success) {
+      setImportText('')
+      setHealNotice(t('settings.health.healed'))
+      setTimeout(() => setHealNotice(null), 4000)
+    }
+  }
+
   return (
     <div className="dsh-ph-settings">
       {locked ? <p className="dsh-ph-notice" role="status">{t('settings.readOnly')}</p> : null}
-      {snapshot.failed ? <p className="dsh-ph-failed" role="status">{t('settings.saveFailed')}</p> : null}
-      <Group title={t('settings.group.input')}>
+
+      {/* 保存失败容灾横幅 */}
+      {snapshot.failed ? (
+        <div className="dsh-ph-failed-banner" role="alert">
+          <span>{t('settings.health.saveFailedNotice')}</span>
+          <button
+            type="button"
+            className="dsh-ph-inline-link"
+            onClick={handleHeal}
+            disabled={locked || snapshot.healing}
+          >
+            {t('settings.health.saveFailedHeal')}
+          </button>
+        </div>
+      ) : null}
+
+      {/* 自愈成功临时反馈 */}
+      {healNotice ? (
+        <div className="dsh-ph-success-banner" role="status">
+          <span>{healNotice}</span>
+        </div>
+      ) : null}
+
+      {/* 分组一：复制与剪贴板 */}
+      <Group title={t('settings.group.clipboard')}>
+        <ChoiceRow
+          title={t('settings.row.copy')}
+          hint={t('settings.row.copy.hint')}
+          value={value.copyMode}
+          options={copyOptions}
+          disabled={locked}
+          onChange={(next) => props.edit('copyMode', next as CopyMode)}
+        />
+        <ToggleRow
+          title={t('settings.row.paste')}
+          hint={t('settings.row.paste.hint')}
+          checked={value.rightClickPaste}
+          disabled={locked}
+          onChange={(next) => props.edit('rightClickPaste', next)}
+        />
+      </Group>
+
+      {/* 分组二：历史回溯与快捷手势 */}
+      <Group title={t('settings.group.history')}>
         <ToggleRow
           title={t('settings.row.history')}
           hint={t('settings.row.history.hint')}
@@ -144,6 +225,24 @@ export function SettingsCardSlot(props: SettingsCardProps): JSX.Element | null {
           disabled={locked}
           onChange={(next) => props.edit('doubleEsc', next)}
         />
+        <ToggleRow
+          title={t('settings.row.ignoreSpace')}
+          hint={t('settings.row.ignoreSpace.hint')}
+          checked={value.ignoreLeadingSpace}
+          disabled={locked}
+          onChange={(next) => props.edit('ignoreLeadingSpace', next)}
+        />
+        <ToggleRow
+          title={t('settings.row.global')}
+          hint={t('settings.row.global.hint')}
+          checked={value.globalHistory}
+          disabled={locked}
+          onChange={(next) => props.edit('globalHistory', next)}
+        />
+      </Group>
+
+      {/* 分组三：历史搜索面板 */}
+      <Group title={t('settings.group.search')}>
         <ChoiceRow
           title={t('settings.row.maxHistory')}
           hint={t('settings.row.maxHistory.hint')}
@@ -166,31 +265,91 @@ export function SettingsCardSlot(props: SettingsCardProps): JSX.Element | null {
           disabled={locked}
           onChange={(next) => props.edit('fuzzyMatch', next)}
         />
-        <ToggleRow
-          title={t('settings.row.global')}
-          hint={t('settings.row.global.hint')}
-          checked={value.globalHistory}
-          disabled={locked}
-          onChange={(next) => props.edit('globalHistory', next)}
-        />
       </Group>
-      <Group title={t('settings.group.copy')}>
-        <ChoiceRow
-          title={t('settings.row.copy')}
-          hint={t('settings.row.copy.hint')}
-          value={value.copyMode}
-          options={copyOptions}
-          disabled={locked}
-          onChange={(next) => props.edit('copyMode', next as CopyMode)}
-        />
-        <ToggleRow
-          title={t('settings.row.paste')}
-          hint={t('settings.row.paste.hint')}
-          checked={value.rightClickPaste}
-          disabled={locked}
-          onChange={(next) => props.edit('rightClickPaste', next)}
-        />
+
+      {/* 分组四：配置健康与自愈维护 */}
+      <Group title={t('settings.group.maintenance')}>
+        <div className="dsh-ph-health-row">
+          <div className={`dsh-ph-health-box ${health.status === 'healthy' ? 'isHealthy' : 'isWarning'}`}>
+            <span className={`dsh-ph-health-dot ${health.status === 'healthy' ? 'isHealthy' : 'isWarning'}`} />
+            <div className="dsh-ph-health-info">
+              <span className="dsh-ph-health-title">
+                {health.status === 'healthy'
+                  ? t('settings.health.healthy')
+                  : health.status === 'corrupted'
+                    ? t('settings.health.corrupted')
+                    : t('settings.health.degraded')}
+              </span>
+              <span className="dsh-ph-health-desc">
+                {health.status === 'healthy' ? t('settings.health.healthy.desc') : health.summary}
+              </span>
+            </div>
+            {health.status !== 'healthy' ? (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleHeal}
+                disabled={locked || snapshot.healing}
+                className="dsh-ph-heal-btn"
+              >
+                {snapshot.healing ? t('settings.health.healing') : t('settings.health.healBtn')}
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
+        {/* 高级工具折叠区 */}
+        <div className="dsh-ph-adv-container">
+          <button
+            type="button"
+            className="dsh-ph-adv-toggle"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+          >
+            <span>{showAdvanced ? '▼' : '▶'}</span>
+            <span>{t('settings.tools.advancedTitle')}</span>
+          </button>
+
+          {showAdvanced ? (
+            <div className="dsh-ph-adv-pane">
+              <div className="dsh-ph-adv-actions">
+                <Button variant="outline" size="sm" onClick={handleCopyJson}>
+                  {copyFeedback ? t('settings.tools.exported') : t('settings.tools.export')}
+                </Button>
+                {health.status === 'healthy' ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleHeal}
+                    disabled={locked || snapshot.healing}
+                  >
+                    {snapshot.healing ? t('settings.health.healing') : t('settings.health.healBtn')}
+                  </Button>
+                ) : null}
+              </div>
+
+              <div className="dsh-ph-import-box">
+                <textarea
+                  className="dsh-ph-textarea"
+                  value={importText}
+                  onChange={(e) => setImportText(e.target.value)}
+                  placeholder={t('settings.tools.importPlaceholder')}
+                  disabled={locked || snapshot.healing}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleImportAndHeal}
+                  disabled={locked || snapshot.healing || !importText.trim()}
+                >
+                  {t('settings.tools.importHeal')}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </div>
       </Group>
+
+      {/* 底部重置操作 */}
       <div className="dsh-ph-foot">
         <Button variant="outline" size="sm" onClick={props.resetAll} disabled={locked}>
           {t('settings.reset')}

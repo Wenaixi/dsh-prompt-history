@@ -171,6 +171,7 @@ npm pack --dry-run --json                                # 产物清单（输出
 
 ## 决策记录
 
+- **2026-10-10 配置高可用自愈重构系统与人性化四区分组设置**：1. 落地工业级纯函数配置提取消毒器（`extractValidConfig`）与健康诊断器（`analyzeConfigHealth`），在配置残缺、类型错乱或混入未知废弃脏键时，毫秒级榨取完好字段并自动补齐默认值；2. 针对宿主 profile 深比较及 patch 约束实现 `generateHealingOps`，精准拔除历史废弃脏键（unset）并全量生成 9 个标准字段（set），实现配置一键自愈与重构；3. 前端设置卡重构为人性化四大功能区（复制剪贴板、历史手势、历史搜索、健康维护），补全之前遗漏渲染的 `ignoreLeadingSpace` 开关，新增实时健康徽标、保存被拒自愈脱困横幅与高级备份/提取工具；4. 单测套件扩充至 56 项全绿。
 - **2026-10-09 架构深度重构与精细化演进**：1. 修复 Lexical 段落换行（<p> 无 br）导致多行文本被误吞的历史隐患，加固 editor.ts；2. 抽离纯 TypeScript 状态机 PromptHistoryEngine，收拢 8 个 Ref，建立 48 项纯 Node 毫秒级单测护城河，InputHistory.tsx 精简过半；3. 折叠 prefs-model.ts 至单一真源 prefs.ts，杜绝双重订阅时序撕裂；4. 四端对齐落地高价值杀手级精细化配置 ignoreLeadingSpace（前导空格不入历史，对齐 Bash ignorespace 工业规范）。
 - **2026-10-06 修复认领态行内斜杠补全（v2.2.2）**：Playwright 双实例对照定位到 `claimed` 档压制。补丁注入 `inputTriggers` 包装 `track`，判定收敛为 `claim-guard.ts` 的纯函数 `hasInlineSlash`（5 项单测）。隔离实例 12 项验收全绿，并在 `34a60e5` 源码上做「焐热命令目录」的严格对照确认症状可复现。
 - **2026-10-06 复刻 Claude Code 上下键历史与双击 Esc 语义**：↑/↓ 改为顺序浏览（↑ 从最新往回、到底不环绕；↑ 光标行首、↓/恢复草稿行尾；多行只在首/末行接管）。发现两个宿主细节：Lexical 多行换行是 `<br>`；空输入框有占位 `<br>` 不能算第二行。
