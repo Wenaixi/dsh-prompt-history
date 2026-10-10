@@ -84,6 +84,7 @@ interface TriggerPatch {
 
 /** 已补装 track 补丁的控制器，防止同一会话重复包装。 */
 const patched = new WeakSet<object>()
+const ORIG_TRACK = Symbol.for('dsh.ph.origTrack')
 
 export function apply(ctx: ClientContext): void {
   const style = document.createElement('style')
@@ -96,10 +97,11 @@ export function apply(ctx: ClientContext): void {
 
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-prompt-history: dictionaries')
   setTranslator(ctx.locale.bind(NS))
-  ctx.slots.inject('conversation.input.right', () => ctx.slots.register(
+  ctx.effect(() => ctx.slots.inject('conversation.input.right', () => ctx.slots.register(
     { name: 'conversation.input.right', id: 'dsh-prompt-history' },
     InputHistory,
-  ))
+  )), 'dsh-prompt-history: composer input slot')
+
   // 配置卡只在宿主真的提供这份命名空间时注册：宿主没有 settings 服务时，
   // 页面里就不会出现一个点开是空的配置区。
   ctx.inject(['configForms'], (raw) => {
@@ -131,25 +133,39 @@ export function apply(ctx: ClientContext): void {
       | undefined
     const resolve = service?.sessionOf
     if (typeof resolve !== 'function') return
-    // 包一层 sessionOf：每个会话控制器首次取到时补装 track 补丁，卸载时还原原方法。
+    // 包一层 sessionOf：每个会话控制器首次取到时补装 track 补丁，卸载时全面还原会话与宿主服务。
     ctx.effect(() => {
+      let active = true
+      const live = new Set<WeakRef<object>>()
       service!.sessionOf = (scope: unknown): TriggerPatch | undefined => {
         const controller = resolve.call(service, scope)
         if (controller === undefined || typeof controller.track !== 'function') return controller
-        if (patched.has(controller)) return controller
-        patched.add(controller)
-        const hostTrack = controller.track.bind(controller)
-        controller.track = (draft, caret, guard, draftRev) => {
-          // 行内斜杠（光标前最近一个空白之后有 "/"）才放宽；无斜杠的前导认领照旧。
-          if (guard?.tier === 'claimed' && hasInlineSlash(draft, caret)) {
-            return hostTrack(draft, caret, { ...guard, tier: 'plain' }, draftRev)
+        const c = controller as unknown as Record<symbol, unknown> & { track: unknown }
+        if (!c[ORIG_TRACK]) {
+          c[ORIG_TRACK] = controller.track
+          live.add(new WeakRef(controller))
+          const origTrack = c[ORIG_TRACK] as TriggerPatch['track']
+          controller.track = (draft, caret, guard, draftRev) => {
+            // 行内斜杠（光标前最近一个空白之后有 "/"）才放宽；无斜杠的前导认领照旧。
+            if (active && guard?.tier === 'claimed' && hasInlineSlash(draft, caret)) {
+              return origTrack.call(controller, draft, caret, { ...guard, tier: 'plain' }, draftRev)
+            }
+            return origTrack.call(controller, draft, caret, guard, draftRev)
           }
-          return hostTrack(draft, caret, guard, draftRev)
         }
         return controller
       }
       return () => {
+        active = false
         service!.sessionOf = resolve
+        for (const r of live) {
+          const c = r.deref() as (Record<symbol, unknown> & { track: unknown }) | undefined
+          if (c && c[ORIG_TRACK]) {
+            c.track = c[ORIG_TRACK]
+            delete c[ORIG_TRACK]
+          }
+        }
+        live.clear()
       }
     }, 'dsh-prompt-history: input triggers patch')
   })

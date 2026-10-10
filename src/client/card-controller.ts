@@ -26,7 +26,7 @@ function removeLegacyRaw(): void {
   try { localStorage.removeItem(LEGACY_STORAGE_KEY) } catch { /* 隐私模式不可写，迁移结果已在宿主。 */ }
 }
 
-// PrefField 已从 ./prefs.ts 导入
+export type { PrefField } from './prefs.ts'
 
 /** 设置卡组件消费的快照：UI 值直接来自宿主快照，不做本地草稿。 */
 export interface PrefsCardSnapshot {
