@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+## [2.4.1] - 2026-10-10
+
+### 修复与宿主契约适配
+
+- **插件元信息图标体积压制 (Host Metadata Compatibility)**：
+  - 使用高保真 Lanczos 抗锯齿重采样将 `assets/icon.png` 优化为 256×256 视网膜高清规格，文件体积由 987 KiB 缩减 92% 至 77.63 KiB；
+  - 严格满足 DSH 宿主对插件包元信息硬性施加的 256 KiB 上限约束，彻底根治宿主启动与扫描插件时抛出 `Plugin metadata for @wenaixi/dsh-prompt-history: Error: ... icon exceeds 256 KiB` 异常。
+
 ## [2.4.0] - 2026-10-10
 
 ### 架构与核心演进

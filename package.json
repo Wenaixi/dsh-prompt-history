@@ -1,6 +1,6 @@
 {
   "name": "@wenaixi/dsh-prompt-history",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "description": "DeepSeek Harness plugin: Claude Code-style prompt history, double-Esc picker, selection quote/copy & right-click paste | DeepSeek Harness 插件：Claude Code 风格上下键历史回溯、双击 Esc 历史搜索、选中文本引用/自动复制与鼠标右键直接粘贴",
   "keywords": [
     "dsh",
