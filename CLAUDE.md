@@ -67,10 +67,11 @@
 | `card-controller.ts` | `SettingsCardController`：快照投影成 UI 状态、操作即写、失败标记、代际计数 |
 | `SettingsCard.tsx` | 配置卡：自绘外壳（不可用/只读/失败提示）+ 官方 `Switch` + 自绘单选块 |
 | `history-engine.ts` | 纯 TypeScript 无头历史状态机：存储环 FIFO 截断、Claude Code 浏览、双击 Esc、输入法差量搜索、前导空格过滤 |
-| `InputHistory.tsx` | 交互薄壳：下沉核心状态机至 `PromptHistoryEngine`，专职按键事件捕获与划词/右键粘贴监听 |
+| `history-overlay.ts` | 浮层深模块控制器：`HistoryOverlayController`，封装 DOM 骨架构建、高亮切片、视口定位与宽屏截断预览 |
+| `InputHistory.tsx` | 交互协调器：采用 Coordinator 模式组合 `useSelectionCopyToolbar`、`useRightClickPaste`、`usePromptHistoryHotkeys` 3 个正交 Hooks，接入 `HistoryOverlayController` |
 | `editor.ts` | 编辑器 DOM 适配：段落 `<p>` 换行与软换行 `<br>` 视觉行精准判定，杜绝多行误吞 |
-| `history-model.ts` / `nodes.ts` / `feedback.ts` / `i18n.ts` | 纯模型 / 节点读取 / 浮层反馈 / 非 React 取词 |
-| `index.ts` | 注册 `conversation.input.right` 槽位、配置卡、`inputTriggers` 守卫放宽 |
+| `history-model.ts` / `nodes.ts` / `feedback.ts` / `i18n.ts` | 纯模型 / 节点读取 / 选区气泡反馈 / 非 React 取词 |
+| `index.ts` | 注册 `conversation.input.right` 槽位、配置卡、`inputTriggers` 守卫放宽（带 100% 可逆生命周期） |
 
 - 一次性迁移判据是宿主 `user` 层：空（含空对象）表示从未写过，此时才提交旧 localStorage。
 - 订阅表单快照必须用箭头函数包一层：`form.getSnapshot` 直接交给 `useSyncExternalStore` 会丢 `this`，表单内读 `this.store` 抛 TypeError。
@@ -137,7 +138,7 @@
 
 ```sh
 node node_modules/typescript/bin/tsc --noEmit             # 类型
-node --experimental-strip-types --test test/*.test.ts     # 48 项纯函数测试
+node --experimental-strip-types --test test/*.test.ts     # 68 项纯函数测试（覆盖历史引擎、模型、自愈、守卫与浮层控制器）
 pnpm build                                                # 两步构建
 npm pack --dry-run --json                                # 产物清单（输出前混着 prepare 日志，从 '[' 切）
 ```
@@ -171,6 +172,7 @@ npm pack --dry-run --json                                # 产物清单（输出
 
 ## 决策记录
 
+- **2026-10-10 架构深度演进与质量重构（全生命周期可逆化、浮层深模块解耦与 Coordinator 模式落地）**：1. 依据三子代理（生命周期、DOM 架构、React 状态管理）深度核验结论，在 `src/client/index.ts` 中落地 100% 可逆生命周期（CSS 样式注入卸载与基于 `Symbol.for('dsh.ph.origTrack')` + `WeakRef` 的会话猴补安全还原）；2. 抽象 `src/client/history-overlay.ts` 深模块，将 180+ 行命令式 DOM 浮层收拢进 `HistoryOverlayController`，消灭 5 个全局模块变量，并将切片与视口算法提炼为纯函数；3. 新增 `test/history-overlay.test.ts` 12 项离线单测，全仓纯函数单测扩充至 68 项全绿；4. 重构 `InputHistory.tsx` 为 Coordinator 模式，正交解耦为 3 个轻量自定义 Hooks，根治 Divergent Change 坏味道；5. 固化 `card-controller.ts` 与 `prefs.ts` 边界，顺利通过 `tsc`、68 项单测、`pnpm build` 与 `npm pack` 校验。
 - **2026-10-10 配置高可用自愈重构系统与人性化四区分组设置**：1. 落地工业级纯函数配置提取消毒器（`extractValidConfig`）与健康诊断器（`analyzeConfigHealth`），在配置残缺、类型错乱或混入未知废弃脏键时，毫秒级榨取完好字段并自动补齐默认值；2. 针对宿主 profile 深比较及 patch 约束实现 `generateHealingOps`，精准拔除历史废弃脏键（unset）并全量生成 9 个标准字段（set），实现配置一键自愈与重构；3. 前端设置卡重构为人性化四大功能区（复制剪贴板、历史手势、历史搜索、健康维护），补全之前遗漏渲染的 `ignoreLeadingSpace` 开关，新增实时健康徽标、保存被拒自愈脱困横幅与高级备份/提取工具；4. 单测套件扩充至 56 项全绿。
 - **2026-10-09 架构深度重构与精细化演进**：1. 修复 Lexical 段落换行（<p> 无 br）导致多行文本被误吞的历史隐患，加固 editor.ts；2. 抽离纯 TypeScript 状态机 PromptHistoryEngine，收拢 8 个 Ref，建立 48 项纯 Node 毫秒级单测护城河，InputHistory.tsx 精简过半；3. 折叠 prefs-model.ts 至单一真源 prefs.ts，杜绝双重订阅时序撕裂；4. 四端对齐落地高价值杀手级精细化配置 ignoreLeadingSpace（前导空格不入历史，对齐 Bash ignorespace 工业规范）。
 - **2026-10-06 修复认领态行内斜杠补全（v2.2.2）**：Playwright 双实例对照定位到 `claimed` 档压制。补丁注入 `inputTriggers` 包装 `track`，判定收敛为 `claim-guard.ts` 的纯函数 `hasInlineSlash`（5 项单测）。隔离实例 12 项验收全绿，并在 `34a60e5` 源码上做「焐热命令目录」的严格对照确认症状可复现。
