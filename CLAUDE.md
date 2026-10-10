@@ -4,7 +4,7 @@
 
 - **标识**：包名 `@wenaixi/dsh-prompt-history`（scoped，npm 与 GitHub 已发布）。仓库 `origin` = Wenaixi/dsh-prompt-history，`upstream` = Xiaofei-fei/dsh-prompt-history（只读）。主分支 `main`。
 - **定位**：DeepSeek Harness (DSH) Web 输入框终端级交互套件——Claude Code 风格顺序历史回溯、双击 Esc 搜索面板、选中文本引用/自动复制、鼠标右键直接粘贴与前导空格阅后即焚。
-- **形态**：Host 半侧仅声明配置 Schema 与抑制自动表单；浏览器半侧交付交互、自绘配置卡与双语词典。零第三方运行时依赖。
+- **形态**：Host 半侧声明配置 Schema 与抑制自动表单；浏览器半侧交付交互、自绘配置卡与双语词典。零第三方运行时依赖。
 
 ---
 
@@ -21,7 +21,7 @@
 | **配置插槽匹配** | `plugins.bundle.config` 插槽 key = 完整包名（`plugin-manager`） | 必须以包名注册，且该 slot 渲染时不带 form，需动态注入获取 |
 | **配置覆写深比较** | 组合条目配置与新值逐字段深比较，不一致报 `settings/rejected` | `cordis.patch.yml` 必须写全 9 个字段且与 Schema 默认值完全一致 |
 | **Volatile 约束** | 仅 `volatile()` 字段投影成表单；非 volatile 写入直接抛错 | 9 个配置项全部声明为 `.volatile()` |
-| **图标体积约束** | 宿主插件元信息加载硬校验 `icon exceeds 256 KiB`（`plugin-manager`） | `assets/icon.png` 必须压制在 256 KiB 以内（基准 256x256 Lanczos 重采样，~78 KiB） |
+| **图标体积硬界** | 宿主插件元信息加载硬校验 `icon exceeds 256 KiB`（`plugin-manager`） | `assets/icon.png` 必须压制在 256 KiB 以内（安全水位 ≤100 KiB，基准 256x256 ~78 KiB） |
 
 ---
 
@@ -96,7 +96,7 @@ npm pack --dry-run --json                                # 4. 产物完整性与
 
 ### 构建与打包规范
 - **CJS Bundle 标识**：`tsdown.config.ts` 的 `ID` 必须严格等于包名 `@wenaixi/dsh-prompt-history`，否则客户端无法激活。
-- **发布白名单**：`package.json` 的 `files` 必须包含双语 README、CHANGELOG、LICENSE、`lib/` 与 `locale/`。
+- **发布白名单**：`package.json` 的 `files` 必须包含双语 README、CHANGELOG、LICENSE、`lib/`、`locale/` 与 `assets/icon.png`。
 - **孤儿声明防范**：删除源码文件后必须同步清理 `lib/types/` 下对应的旧 `.d.ts` 与 `.d.ts.map`。
 - **图标体积硬界**：`assets/icon.png` 必须严格控制在 256 KiB 以内（安全水位 ≤100 KiB），杜绝宿主元信息抛错 `icon exceeds 256 KiB`。
 
@@ -106,7 +106,7 @@ npm pack --dry-run --json                                # 4. 产物完整性与
 
 1. **版本与文档同步**：更新 `CHANGELOG.md`、`package.json` 版本号，确认双语 README 保持面向用户且无写死版本号；
 2. **本地全量门禁**：通过上述门禁清单全项校验；
-3. **版本提交与打标**：`git commit` → `git tag -a vX.Y.Z -m "release: vX.Y.Z ..."`；
+3. **版本提交与打标**：`git commit` → `git tag -a vX.Y.Z -m "release: vX.Y.Z ..."`（显式 SHA 强绑定）；
 4. **双向推送**：`git push origin main` → `git push origin vX.Y.Z`，触发 GitHub Actions 自动化流水线；
 5. **双真源校验闭环**：
    - 检查 GitHub Release：`gh release view vX.Y.Z`（验证产物生成与 release 说明）；
@@ -126,9 +126,8 @@ npm pack --dry-run --json                                # 4. 产物完整性与
 ## 核心决策记录
 
 - **2026-10-10 宿主元信息硬约束与图标体积压制 (v2.4.1)**：
-  1. 契约发现：定位宿主 `plugin-manager` 在加载插件 `package.json` 元信息时施加的 `icon exceeds 256 KiB` 强校验硬边界；
-  2. 高保真重采样压制：采用 Lanczos 256×256 算法将 `assets/icon.png` 从 987 KiB 压缩至 77.63 KiB（缩减 92%），杜绝宿主崩溃并设立 ≤100 KiB 工程安全水位。
-
+  1. 契约定位：发现宿主 `plugin-manager` 加载插件 `package.json` 元信息时施加的 `icon exceeds 256 KiB` 强校验硬边界；
+  2. 高保真重采样压制：采用 Lanczos 256×256 算法将 `assets/icon.png` 从 987 KiB 压缩至 77.63 KiB（缩减 92%），杜绝宿主加载崩溃，确立 ≤100 KiB 工程安全水位。
 - **2026-10-10 架构深度演进与质量重构 (v2.4.0)**：
   1. 落地 100% 可逆生命周期：样式节点注入与插槽监听自动注销，`inputTriggers` 猴补引入 `ORIG_TRACK` Symbol 与 `WeakRef` 追踪集合，卸载时全面深度还原各活跃会话原方法；
   2. 抽象 `HistoryOverlayController` 深模块（`history-overlay.ts`），封装 DOM 骨架与视口定位，消灭 5 个模块级全局指针，纯切片算法离线可测；
