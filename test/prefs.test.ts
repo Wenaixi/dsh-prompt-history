@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   DEFAULT_PREFS, MAX_HISTORY_MAX, MAX_HISTORY_MIN, normalizePrefs, parseLegacyPrefs,
   planLegacyMigration, prefsOps, draftDiffOps, prefsEqual,
+  analyzeConfigHealth, extractValidConfig, generateHealingOps, safeParseAndExtract,
   type PluginPrefs,
 } from '../src/client/prefs.ts'
 
@@ -171,4 +172,110 @@ test('prefsEqual compares every field', () => {
   }
   assert.equal(prefsEqual(a, { ...a }), true)
   assert.equal(prefsEqual(a, { ...a, globalHistory: true }), false)
+})
+
+test('analyzeConfigHealth reports healthy for a complete valid config', () => {
+  const health = analyzeConfigHealth({
+    copyMode: 'toolbar',
+    rightClickPaste: true,
+    historyEnabled: true,
+    doubleEsc: true,
+    maxHistoryItems: 100,
+    relativeTime: true,
+    fuzzyMatch: true,
+    globalHistory: false,
+    ignoreLeadingSpace: false,
+  })
+  assert.equal(health.status, 'healthy')
+  assert.equal(health.isComplete, true)
+  assert.equal(health.missingKeys.length, 0)
+  assert.equal(health.unknownKeys.length, 0)
+  assert.equal(health.invalidKeys.length, 0)
+})
+
+test('analyzeConfigHealth detects missing keys and marks degraded', () => {
+  const health = analyzeConfigHealth({
+    copyMode: 'toolbar',
+    rightClickPaste: true,
+    // 缺少其余 7 个字段
+  })
+  assert.equal(health.status, 'degraded')
+  assert.equal(health.isComplete, false)
+  assert.equal(health.missingKeys.includes('ignoreLeadingSpace'), true)
+  assert.equal(health.missingKeys.includes('maxHistoryItems'), true)
+})
+
+test('analyzeConfigHealth detects dirty obsolete keys from userLayer and marks corrupted', () => {
+  const raw = {
+    ...DEFAULT_PREFS,
+    tocVisible: true,
+    historyGesture: 'swipe',
+  }
+  const health = analyzeConfigHealth(raw, { tocVisible: true })
+  assert.equal(health.status, 'corrupted')
+  assert.equal(health.unknownKeys.includes('tocVisible'), true)
+  assert.equal(health.unknownKeys.includes('historyGesture'), true)
+})
+
+test('extractValidConfig salvages valid fields while healing corrupted or missing fields', () => {
+  const corrupted = {
+    copyMode: 'auto',
+    rightClickPaste: false,
+    historyEnabled: 'yes-please', // 类型错误，应被修复为默认值 true
+    maxHistoryItems: '500', // 字符串数字，应安全转换为数值 500
+    // 缺少 doubleEsc, relativeTime, fuzzyMatch, globalHistory, ignoreLeadingSpace
+    obsoleteGhostKey: 12345, // 脏键，应被自动过滤不进入 prefs
+  }
+
+  const result = extractValidConfig(corrupted)
+  assert.equal(result.prefs.copyMode, 'auto')
+  assert.equal(result.prefs.rightClickPaste, false)
+  assert.equal(result.prefs.historyEnabled, true) // 默认值回退
+  assert.equal(result.prefs.maxHistoryItems, 500) // 成功转换
+  assert.equal(result.prefs.doubleEsc, true) // 默认值补齐
+  assert.equal(result.prefs.ignoreLeadingSpace, false) // 默认值补齐
+  assert.equal('obsoleteGhostKey' in result.prefs, false) // 脏键被安全清洗
+  assert.equal(result.salvagedCount >= 3, true)
+  assert.equal(result.repairs.length > 0, true)
+})
+
+test('extractValidConfig migrates legacy copyOnSelect when copyMode is missing', () => {
+  const result = extractValidConfig({ copyOnSelect: true })
+  assert.equal(result.prefs.copyMode, 'auto')
+})
+
+test('generateHealingOps produces full set operations and unsets dirty keys from userLayer', () => {
+  const userLayer = {
+    historyGesture: 'pinch',
+    tocVisible: false,
+    copyMode: 'auto',
+  }
+  const cleanPrefs: PluginPrefs = { ...DEFAULT_PREFS, copyMode: 'auto' }
+  const ops = generateHealingOps(userLayer, cleanPrefs)
+
+  // 必须对 2 个脏键生成 unset
+  const unsets = ops.filter(op => op.op === 'unset')
+  assert.equal(unsets.length, 2)
+  assert.deepEqual(unsets.map(op => op.path[0]).sort(), ['historyGesture', 'tocVisible'].sort())
+
+  // 必须对 9 个标准字段生成 set
+  const sets = ops.filter(op => op.op === 'set')
+  assert.equal(sets.length, 9)
+  assert.equal(sets.find(op => op.path[0] === 'copyMode')?.value, 'auto')
+})
+
+test('safeParseAndExtract handles invalid JSON gracefully', () => {
+  const res = safeParseAndExtract('{ bad json :::')
+  assert.equal(res.success, false)
+  assert.deepEqual(res.result.prefs, DEFAULT_PREFS)
+  assert.equal(res.health.status, 'corrupted')
+})
+
+test('safeParseAndExtract extracts and diagnoses valid JSON', () => {
+  const json = JSON.stringify({ copyMode: 'off', rightClickPaste: false })
+  const res = safeParseAndExtract(json)
+  assert.equal(res.success, true)
+  assert.equal(res.result.prefs.copyMode, 'off')
+  assert.equal(res.result.prefs.rightClickPaste, false)
+  assert.equal(res.health.status, 'degraded') // 缺少其它字段
 })
