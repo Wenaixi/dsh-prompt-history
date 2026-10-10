@@ -88,7 +88,7 @@ dsh plugin --profile web remove @wenaixi/dsh-prompt-history
 ### 5. 鼠标右键直接粘贴
 在输入框内单击鼠标右键直接粘贴系统剪贴板内容，不弹出右键菜单，复刻 Linux 终端体验；走与 Ctrl+V 完全一致的输入管线（图片附件与引用 chip 行为完全统一），execCommand 路径受限时自动平滑回退至 Clipboard API。
 
-### 6. 认领态行内斜杠补全（v2.2.2 新增）
+### 6. 认领态行内斜杠补全
 宿主在认领带参前导命令（如 `/plan `）后会进入 `claimed` 保护阶段，其底层 `detectTrigger` 会无差别跳过后续所有斜杠，导致在裸宿主上键入 `/plan /dsh-plugin-dev` 时完全无法唤出技能补全。本插件注入 `inputTriggers` 服务：在光标位于行内斜杠时将守卫动态放宽至 `plain`，使命令参数中的技能补全按预期弹出，同时严格抑制 URL 与 `//` 伪触发。
 
 ### 7. 跨会话历史持久化
@@ -153,7 +153,7 @@ src/
     feedback.ts            # 复制成功与清空提示 Toast 浮层
     locales.ts             # 中英文双语本地化字典
 locale/                    # 插件元数据多语言文件（zh.json / en.json）
-test/                      # 纯函数单元测试集（48 项测试）
+test/                      # 纯函数单元测试集
 cordis.patch.yml           # 默认配置补丁声明
 package.json               # 模块清单与平台规范声明
 ```
@@ -166,7 +166,7 @@ package.json               # 模块清单与平台规范声明
 # 1. 类型检查
 node node_modules/typescript/bin/tsc --noEmit
 
-# 2. 纯函数单元测试（48 项全绿）
+# 2. 纯函数单元测试
 node --experimental-strip-types --test test/*.test.ts
 
 # 3. 双步构建：tsc 类型输出 + tsdown 模块打包

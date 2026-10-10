@@ -88,7 +88,7 @@ Any non-empty text selection across the page (composer, chat messages, code bloc
 ### 5. Right-Click Direct Paste
 Right-clicking inside the composer instantly pastes the clipboard contents without opening a context menu, matching Linux terminal behavior. It executes through the exact same internal pipeline as Ctrl+V (preserving image attachments and chips identically), with a smooth fallback to the Clipboard API if `execCommand` is restricted.
 
-### 6. Claimed Inline Slash Completion (v2.2.2)
+### 6. Claimed Inline Slash Completion
 When the host claims a parameterized command (e.g., `/plan `), it transitions the input guard to the `claimed` tier. In vanilla DSH, `detectTrigger` unconditionally ignores subsequent slashes, preventing autocomplete for commands like `/plan /dsh-plugin-dev`. This plugin wraps the trigger controller and dynamically downgrades the guard to `plain` when the caret rests on an inline slash preceded by text, allowing parameter completions to trigger as expected while strictly suppressing false positives like URLs and `//`.
 
 ### 7. Cross-Session History Persistence
@@ -153,7 +153,7 @@ src/
     feedback.ts            # Toast notifications for copy feedback and clear hints
     locales.ts             # Bilingual i18n dictionaries (zh / en)
 locale/                    # Plugin metadata i18n files (zh.json / en.json)
-test/                      # Pure functional unit test suite (48 passing tests)
+test/                      # Pure functional unit test suite
 cordis.patch.yml           # Default profile patch declaration
 package.json               # Module manifest and platform contracts
 ```
@@ -166,7 +166,7 @@ Maintains strict engineering discipline with complete type checking, unit tests,
 # 1. Type checking
 node node_modules/typescript/bin/tsc --noEmit
 
-# 2. Pure functional unit tests (48 passing tests)
+# 2. Pure functional unit tests
 node --experimental-strip-types --test test/*.test.ts
 
 # 3. Two-stage build: tsc declarations + tsdown bundle

@@ -4,6 +4,36 @@
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-10-10
+
+### 架构与核心演进
+
+- **全生命周期可逆化 (Lifecycle Reversibility)**：
+  - 针对宿主 `inputTriggers` 服务猴补引入 `Symbol.for('dsh.ph.origTrack')` 原方法固化与 `WeakRef` 会话追踪集合，在插件卸载或热重载时不仅恢复全局 `sessionOf`，同时深度复原所有活跃会话的原 `track` 方法，彻底根治闭包与内存常驻泄漏；
+  - 样式标签注入与 `ctx.slots.inject` 统一包裹进 `ctx.effect` 响应式副作用通道，插件禁用/卸载时自动从 `document.head` 移除 `<style>` 标签与插槽监听器，100% 达成 `dsh-plugin-dev` 可逆副作用规范。
+- **浮层深模块化与关注点解耦 (Depth & Locality)**：
+  - 抽离独立的 `HistoryOverlayController` 深模块（`src/client/history-overlay.ts`），将 180+ 行命令式 DOM 浮层逻辑全面封装，彻底消灭 5 个模块级全局指针与双向状态穿透；
+  - 提炼 `splitHighlighted` 文本切片算法、`formatPreview` 宽屏多行文本截断算法与 `calculatePanelTop` 视口避让坐标算法为高纯度无副作用函数；
+  - 新增 `test/history-overlay.test.ts` 12 项纯 Node 离线单测，全仓原生单测跃升至 **68 项全绿**。
+- **输入外壳 Coordinator 模式重构**：
+  - `src/client/InputHistory.tsx` 单体解耦为 3 个正交的轻量自定义 Hooks：
+    - `useSelectionCopyToolbar`：划词复制/引用工具栏；
+    - `useRightClickPaste`：终端风格右键直接粘贴；
+    - `usePromptHistoryHotkeys`：捕获期快捷键调度与状态机动作派发；
+  - 主组件精简至 ~90 行，消除发散式变化坏味道，实现零运行时额外开销与零行为差异。
+- **配置域与控制器严格缝隙 (Seam)**：
+  - 维持 `prefs.ts` 纯领域模型与 `card-controller.ts` UI 插槽控制器的清晰分层，统一复用并重导出单一真源类型 `PrefField`。
+
+### 特性与健康自愈
+
+- **前导空格隐私提示词 (ignoreLeadingSpace)**：以空格开头的提示词（对齐 Bash ignorespace 工业规范）阅后即焚，不持久化入会话历史环。
+- **工业级配置健康自愈与消毒系统**：
+  - 提供 `extractValidConfig` 容灾提取器与 `analyzeConfigHealth` 诊断器，在配置残缺、类型错误或混入未知废弃脏键时，毫秒级榨取完好字段并自动补齐默认值；
+  - 针对宿主 profile 深比较及 patch 约束实现 `generateHealingOps`，精准拔除历史废弃脏键（unset）并全量生成 9 个标准字段（set），支持一键自愈；
+  - 设置卡重构为人性化四大功能区划分（复制剪贴板、历史手势、历史搜索、健康维护），支持实时健康徽标。
+- **编辑器换行模型加固**：
+  - 精细化适配 Lexical 编辑器的兄弟段落 `<p>` 换行与软换行 `<br>`，杜绝多行文本首末行误吞。
+
 ## [2.2.2] - 2026-10-06
 
 ### 修复
