@@ -125,6 +125,10 @@ npm pack --dry-run --json                                # 4. 产物完整性与
 
 ## 核心决策记录
 
+- **2026-10-10 宿主元信息硬约束与图标体积压制 (v2.4.1)**：
+  1. 契约发现：定位宿主 `plugin-manager` 在加载插件 `package.json` 元信息时施加的 `icon exceeds 256 KiB` 强校验硬边界；
+  2. 高保真重采样压制：采用 Lanczos 256×256 算法将 `assets/icon.png` 从 987 KiB 压缩至 77.63 KiB（缩减 92%），杜绝宿主崩溃并设立 ≤100 KiB 工程安全水位。
+
 - **2026-10-10 架构深度演进与质量重构 (v2.4.0)**：
   1. 落地 100% 可逆生命周期：样式节点注入与插槽监听自动注销，`inputTriggers` 猴补引入 `ORIG_TRACK` Symbol 与 `WeakRef` 追踪集合，卸载时全面深度还原各活跃会话原方法；
   2. 抽象 `HistoryOverlayController` 深模块（`history-overlay.ts`），封装 DOM 骨架与视口定位，消灭 5 个模块级全局指针，纯切片算法离线可测；
