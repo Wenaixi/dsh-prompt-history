@@ -4,6 +4,18 @@
 
 ## [Unreleased]
 
+## [2.5.1] - 2026-10-17
+
+### 深度适配 DSH 0.2.1-rc.2 与废弃包彻底拔除 (Purge Invariants & engines.dsh Alignment)
+
+- **移除已退役的 invariant 诊断机制 (Drop Obsolete Invariants)**：
+  - 彻底对齐 DSH 0.2.1-rc.2 发版契约（官方全面下架运行时 invariant 插件及各包的 `./invariant` 导出），删除 `src/invariant.ts`；
+  - 从 `package.json` 的 `exports` 中移除 `./invariant`，从 `files` 白名单中移除 `lib/invariant.js`，并在 `peerDependencies` 与 `devDependencies` 中彻底清除 `@deepseek-ai/dsh-invariants`；
+  - 同步简化 `tsdown.config.ts` 打包入口，消灭所有孤儿产物与旧声明。
+- **官方推荐 engines.dsh 字段规范支持 (Engines DSH Range Support)**：
+  - 在 `package.json` 的 `engines` 中正式添加 `"dsh": ">=0.2.0-rc.2"`，使 0.2.1-rc.2 的新发现中心和插件管理器优先判定兼容；
+  - 将所有 `@deepseek-ai/dsh-*` peer 依赖范围拓宽为 `">=0.2.0-rc.2"`，完美支持 0.2.0-rc.2 与最新 0.2.1-rc.2 全系无缝安装。
+
 ## [2.5.0] - 2026-10-17
 
 ### 架构演进与现代契约对齐 (Modern Architecture & Pure Contracts)

@@ -39,7 +39,7 @@ const NODE_ENV = 'production'
 export default [
   {
     name: ID,
-    entry: ['lib/types/index.js', 'lib/types/invariant.js'],
+    entry: ['lib/types/index.js'],
     outDir: 'lib',
     format: ['esm'],
     platform: 'node',

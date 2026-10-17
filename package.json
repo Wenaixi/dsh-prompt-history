@@ -1,6 +1,6 @@
 {
   "name": "@wenaixi/dsh-prompt-history",
-  "version": "2.5.0",
+  "version": "2.5.1",
   "description": "DeepSeek Harness plugin: Claude Code-style prompt history, double-Esc picker, selection quote/copy & right-click paste | DeepSeek Harness 插件：Claude Code 风格上下键历史回溯、双击 Esc 历史搜索、选中文本引用/自动复制与鼠标右键直接粘贴",
   "keywords": [
     "dsh",
@@ -27,10 +27,6 @@
       "types": "./lib/types/index.d.ts",
       "default": "./lib/index.js"
     },
-    "./invariant": {
-      "types": "./lib/types/invariant.d.ts",
-      "default": "./lib/invariant.js"
-    },
     "./client": {
       "types": "./lib/types/client/index.d.ts",
       "default": "./lib/client.js"
@@ -40,7 +36,8 @@
     "./package.json": "./package.json"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20",
+    "dsh": ">=0.2.0-rc.2"
   },
   "dsh": {
     "bundle": {
@@ -63,7 +60,6 @@
   },
   "files": [
     "lib/index.js",
-    "lib/invariant.js",
     "lib/client.js",
     "lib/types/**/*.d.ts",
     "src",
@@ -77,17 +73,16 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@deepseek-ai/cordis": "~4.0.4",
-    "@deepseek-ai/dsh-client-locale": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-api-session-controller": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-client-ui-session": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-client-ui-conversation": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-client-ui-renderer": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-client-ui-plugin-manager": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-client-ui-primitives": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-client-ui-settings": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-client-ui-slots": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-invariants": "0.2.0-rc.2",
+    "@deepseek-ai/cordis": ">=4.0.4",
+    "@deepseek-ai/dsh-client-locale": ">=0.2.0-rc.2",
+    "@deepseek-ai/dsh-api-session-controller": ">=0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-session": ">=0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-conversation": ">=0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-renderer": ">=0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-plugin-manager": ">=0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-primitives": ">=0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-settings": ">=0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-slots": ">=0.2.0-rc.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
@@ -103,7 +98,6 @@
     "@deepseek-ai/dsh-client-ui-session": "0.2.0-rc.2",
     "@deepseek-ai/dsh-client-ui-settings": "0.2.0-rc.2",
     "@deepseek-ai/dsh-client-ui-slots": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-invariants": "0.2.0-rc.2",
     "@deepseek-ai/dsh-settings": "0.2.0-rc.2",
     "@deepseek-ai/schemastery": "~3.18.4",
     "@types/react": "~18.3.1",
