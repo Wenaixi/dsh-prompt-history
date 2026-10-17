@@ -132,7 +132,12 @@ npm pack --dry-run --json                                # 4. 产物完整性与
 - **2026-10-17 深度适配 DSH 0.2.1-rc.2 与废弃包彻底拔除 (v2.5.1)**：
   1. 彻底对齐 0.2.1-rc.2 发版契约：官方全面下架运行时 invariant 插件及各包 `./invariant` 导出，插件彻底删除 `src/invariant.ts`，从导出与依赖中清除 `@deepseek-ai/dsh-invariants`，根除孤儿产物；
   2. 官方推荐 `engines.dsh` 字段规范：在 `package.json` 的 `engines` 中显式添加 `"dsh": ">=0.2.0-rc.2"`，并在 `peerDependencies` 中将 `@deepseek-ai/dsh-*` 全面支持 0.2.0-rc.2 与 0.2.1-rc.2 全系；
-  3. 双真源闭环验证：GitHub Release `v2.5.1` 成功挂牌，npm 官方源直连核验 `dist-tags.latest` 成功同步为 `2.5.1`。
+  3. 双真源闭环验证：GitHub Release `v2.5.1` 成功挂牌，npm 官方源直连核验 `dist-tags.latest` 权威确认为 `2.5.1`；
+  4. 真实浏览器 CDP 全功能实机路测全绿验证（`dsh-verify-live` 独立实例，高位端口 3899，绝不碰 3080 实例）：
+     - 设置卡实操：四大分区正常渲染，单选块/开关点击即写（mutate），物理磁盘 `cordis.patch.yml` 验证原子落盘；
+     - 键盘手势：非空草稿双击 Esc 清空入库（`""`），空草稿双击 Esc 唤起 `.dsh-ph-history` 搜索面板（含历史条目与底部提示），Esc 顺畅关闭；方向键 ↑ 召回历史、↓ 还原草稿；多行文本光标在第 2 行时不拦截正常上移、到达第 1 行才接管历史；
+     - 划词与右键：划词选区浮动工具栏（`.dsh-ph-toolbar`）正常弹出，点击「引用」回填 Markdown 引用块（`> ...`）；输入框鼠标右键直接粘贴（`defaultPrevented: true`）；
+     - 认领态行内斜杠：在 `/plan ` 认领态下输入 `/`，补全菜单正常弹出（`menuOpened: true`，成功列出 171 项！），彻底突破官方静默屏蔽硬限制。
 - **2026-10-17 宿主契约纯净演进与零旧版包袱 (v2.5.0)**：
   1. 彻底斩断历史包袱：全面废弃 ≤0.1.1、0.1.2-rc 及 2.0.x 旧版兼容分支，删除 `legacy.nodes`、`anchorSeq`、`data.seq`、`data.content` 等容错代码；
   2. 会话快照官方直连：消灭 `InputHistory.tsx` 中 `useChat` 幽灵探针与 `rawNodesOf` 四阶探测，直接通过 `useConversation((c) => c?.views.get('chat'))` 消费官方 `ChatSnapshot`（`order` 数组 + `nodes.get` 强类型存取）；
