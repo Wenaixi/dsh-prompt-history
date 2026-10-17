@@ -4,6 +4,22 @@
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-10-17
+
+### 架构演进与现代契约对齐 (Modern Architecture & Pure Contracts)
+
+- **彻底斩断历史包袱 (Drop Legacy Compatibility)**：
+  - 全面废弃 ≤0.1.1、0.1.2-rc 及 2.0.x 旧版兼容分支，彻底清除 `legacy.nodes`、`anchorSeq`、`data.seq`、`data.time`、`data.content` 等多代容错探测代码；
+  - 会话节点解析器（`src/client/nodes.ts`）直接对齐 DSH 0.2.0-rc.2 `records.d.ts` 的 `UserMessageNode` 与 `SteeringMessageNode` 官方权威契约，直接提取 `seq`、`time` 与 `content` 纯文本，大幅精简 AST 解析链路并提升运行性能。
+- **现代会话快照直连 (Official Chat Snapshot Direct Access)**：
+  - 彻底消灭 `InputHistory.tsx` 中的 `(props as any).useChat` 历史幽灵探针与 `rawNodesOf` 四阶容错探测；
+  - 直接通过标准会话 Props `useConversation((c) => c?.views.get('chat'))` 消费官方 `ChatSnapshot`（`order` 键序列 + `nodes.get` 强类型存取），实现零 hack 纯净数据流通。
+- **客户端显式服务依赖双导出 (Explicit Client Service Exports)**：
+  - `src/client/index.ts` 补齐 `export default { apply, inject }` 与具名 `export const inject` 严格双导出，彻底杜绝隔离新实例冷启动时因隐式依赖导致的未就绪报错（`web boot: 1 entry did not activate`）。
+- **单元测试扩充与独立隔离实例真机真值闭环 (Test Expansion & Isolated Acceptance)**：
+  - 新增 `test/nodes.test.ts` 纯 Node 原生单测，全仓原生单测套件扩充至 **74 项 100% 全绿**（耗时仅 ~680ms）；
+  - 搭建独立隔离 profile `dsh-ph-isolated-test`（高位端口 3899，mklink /J 直通联接，绝对不触碰当前 3080 实例），双真源验证 `__DSH_BOOT__` 模块清单注入、`client.js` HTTP 200 分发及现代 `views.get` 源码特征，验证通过后现场自动清理。
+
 ## [2.4.1] - 2026-10-10
 
 ### 修复与宿主契约适配
