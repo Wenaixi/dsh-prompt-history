@@ -2,7 +2,7 @@
 
 ## 项目定位
 
-- **标识**：包名 `@wenaixi/dsh-prompt-history`（scoped，npm 与 GitHub 已发布）。仓库 `origin` = Wenaixi/dsh-prompt-history，`upstream` = Xiaofei-fei/dsh-prompt-history（只读）。主分支 `main`。
+- **标识**：包名 `@wenaixi/dsh-prompt-history`（scoped，npm 与 GitHub 已发布，最新版本 `v2.5.1`）。仓库 `origin` = Wenaixi/dsh-prompt-history，`upstream` = Xiaofei-fei/dsh-prompt-history（只读）。主分支 `main`。
 - **定位**：DeepSeek Harness (DSH) Web 输入框终端级交互套件——Claude Code 风格顺序历史回溯、双击 Esc 搜索面板、选中文本引用/自动复制、鼠标右键直接粘贴与前导空格阅后即焚。
 - **形态**：Host 半侧声明配置 Schema 与抑制自动表单；浏览器半侧交付交互、自绘配置卡与双语词典。零第三方运行时依赖。
 
@@ -10,13 +10,17 @@
 
 ## 宿主硬契约（外部绝对事实）
 
-基于 `@deepseek-ai/*` 0.2.0-rc.2 真实源码验证：
+基于 `@deepseek-ai/*` 0.2.1-rc.2 与 0.2.0-rc.2 真实源码验证：
 
 | 契约项 | 宿主事实与出处 | 插件实现约束 |
 |---|---|---|
+| **引擎版本仲裁** | 0.2.1-rc.2 插件管理器优先按 `engines.dsh` 判定兼容性（`plugin-market`） | `package.json` 显式声明 `"engines": { "node": ">=20", "dsh": ">=0.2.0-rc.2" }` |
+| **诊断机制下架** | 0.2.1 系列彻底移除 `invariants` 插件与各包 `./invariant` 导出（`dsh-invariants`） | 彻底删除 `src/invariant.ts`，从导出、白名单与 peer 依赖中全量剔除 |
 | **触发档位压制** | `claimed` 态下 `detectTrigger` 硬跳过所有 `/`（`dsh-client-ui-input-trigger`） | `index.ts` 猴补 `sessionOf().track`，行内斜杠降级为 `plain` |
 | **建议菜单 DOM** | 外层 `[data-trigger-menu]`，内层 `role=listbox`（同上 `MenuView`） | 让位选择器必须覆盖两者，防骨架屏期误判抢占 |
-| **认领生效区** | 认领令牌只能落在草稿首段（`dsh-client-ui-conversation`） | 行内斜杠判定：光标段含 `/` 且「段前有正文」排除认领令牌 |
+| **认领生效区** | 命令芯片化（`CommandChipNode`）认领令牌落在首段（`dsh-client-ui-conversation`） | 行内斜杠判定：光标段含 `/` 且「段前有正文」排除认领令牌本身 |
+| **会话快照直连** | 现代会话通过 `views.get('chat')` 下发 `ChatSnapshot`（`dsh-client-ui-chat`） | 直接读取 `order` 数组与 `nodes.get(key)` 提取 `UserMessageNode` |
+| **双面显式导出** | 隔离实例冷启动要求客户端显式提供依赖拓扑（`dsh-cordis-client-runner`） | `index.ts` 必须同时导出 `export const inject` 与 `export default { apply, inject }` |
 | **命名空间绑定** | Settings 命名空间 = Loader 行 id = `dsh-prompt-history` | 插件自身不注册命名空间，由宿主投影配置 |
 | **配置插槽匹配** | `plugins.bundle.config` 插槽 key = 完整包名（`plugin-manager`） | 必须以包名注册，且该 slot 渲染时不带 form，需动态注入获取 |
 | **配置覆写深比较** | 组合条目配置与新值逐字段深比较，不一致报 `settings/rejected` | `cordis.patch.yml` 必须写全 9 个字段且与 Schema 默认值完全一致 |
@@ -57,13 +61,13 @@
 |---|---|
 | `history-engine.ts` | **核心无头状态机（深模块）**：纯 TypeScript 驱动，存储环 FIFO 裁剪、顺序浏览、800ms 双击 Esc、IME 组字态避让与前导空格隐私过滤。脱机零 DOM 依赖。 |
 | `history-overlay.ts` | **浮层渲染控制器（深模块）**：`HistoryOverlayController`，封装 DOM 骨架构建、高亮切片（`splitHighlighted`）、视口避让定位（`calculatePanelTop`）与宽屏预览截断。 |
-| `InputHistory.tsx` | **交互协调器（Coordinator）**：主组件仅保留状态订阅，将捕获期 DOM 事件委派给 3 个专属正交 Hooks（`useSelectionCopyToolbar`、`useRightClickPaste`、`usePromptHistoryHotkeys`）。零运行时开销。 |
+| `InputHistory.tsx` | **交互协调器（Coordinator）**：主组件仅保留状态订阅，将捕获期 DOM 事件委派给 3 个专属正交 Hooks（`useSelectionCopyToolbar`、`useRightClickPaste`、`usePromptHistoryHotkeys`）。直连现代 `useConversation((c) => c?.views.get('chat'))`。 |
 | `prefs.ts` | **配置领域模型与自愈中心（单一真源）**：快照 Store 发布、数据规范化、健康诊断（`analyzeConfigHealth`）与损坏自愈提取（`extractValidConfig`、`generateHealingOps`）。 |
 | `card-controller.ts` | **UI 插槽控制器**：`SettingsCardController`，连接宿主 `ConfigForm` 与组件，维护 `generation` 代际计数栅栏（抑制并发乱序与卸载迟到回执），操作即写。 |
 | `SettingsCard.tsx` | **自绘配置组件**：划分四大功能区（复制剪贴板、历史手势、历史搜索、健康维护），原生主题 Token（`--dsw-*`）自绘单选面板与官方 `Switch`，支持一键自愈。 |
 | `editor.ts` | **DOM 编辑器适配器（真实缝隙）**：兼顾 `textarea` 与 Lexical `contenteditable`，精准判定段落 `<p>` 与软换行 `<br>` 视觉行首末行，杜绝多行误吞。 |
 | `claim-guard.ts` | **纯函数守卫**：`hasInlineSlash`，判定光标处于段前有正文的行内斜杠。 |
-| `nodes.ts` | **现代会话消息解析器（纯函数）**：直接对齐 DSH 0.2.0-rc.2 `records.d.ts` 的 `UserMessageNode` 与 `SteeringMessageNode` 契约，彻底清除历史多代 AST 容错分支。 |
+| `nodes.ts` | **现代会话消息解析器（纯函数）**：直接对齐 DSH `records.d.ts` 的 `UserMessageNode` 与 `SteeringMessageNode` 契约，彻底清除历史多代 AST 容错分支。 |
 | `index.ts` | **客户端装配入口**：插槽注册、配置卡注入、`export default { apply, inject }` 显式依赖声明与 `inputTriggers` 猴补（通过 `ctx.effect` + `ORIG_TRACK` Symbol + `WeakRef` 实现 100% 可逆生命周期）。 |
 
 ---
@@ -89,16 +93,16 @@
 ### 门禁执行序列
 ```sh
 node node_modules/typescript/bin/tsc --noEmit             # 1. 静态类型检查 (0 错误)
-node --experimental-strip-types --test test/*.test.ts     # 2. 74 项纯 Node 原生单测全绿 (~660ms)
+node --experimental-strip-types --test test/*.test.ts     # 2. 74 项纯 Node 原生单测全绿 (~600ms)
 pnpm build                                                # 3. 两步构建: tsc 声明到 lib/types + tsdown 打包
-npm pack --dry-run --json                                # 4. 产物完整性与文件白名单校验
+npm pack --dry-run --json                                # 4. 产物完整性与文件白名单校验 (41 文件)
 ```
 
 ### 构建与打包规范
 - **CJS Bundle 标识**：`tsdown.config.ts` 的 `ID` 必须严格等于包名 `@wenaixi/dsh-prompt-history`，否则客户端无法激活。
-- **发布白名单**：`package.json` 的 `files` 必须包含双语 README、CHANGELOG、LICENSE、`lib/`、`locale/` 与 `assets/icon.png`。
+- **发布白名单**：`package.json` 的 `files` 包含双语 README、CHANGELOG、LICENSE、`lib/`、`locale/` 与 `assets/icon.png`。
 - **孤儿声明防范**：删除源码文件后必须同步清理 `lib/types/` 下对应的旧 `.d.ts` 与 `.d.ts.map`。
-- **图标体积硬界**：`assets/icon.png` 必须严格控制在 256 KiB 以内（安全水位 ≤100 KiB），杜绝宿主元信息抛错 `icon exceeds 256 KiB`。
+- **图标体积硬界**：`assets/icon.png` 严格控制在 256 KiB 以内（安全水位 ≤100 KiB，基准 256x256 ~78 KiB）。
 
 ---
 
@@ -117,19 +121,23 @@ npm pack --dry-run --json                                # 4. 产物完整性与
 ## 不做的事（边界约束）
 
 - 不自建任何私有 HTTP 后端，所有配置数据完全依托宿主 Settings 通路；
-- 不引入外部运行时第三方库（保持零依赖，CJS Bundle gzip 控制在 ~31 KB）；
+- 不引入外部运行时第三方库（保持零依赖，CJS Bundle gzip 控制在 ~30.7 KB）；
 - 不侵入宿主日常 profile，不对未修改配置实施强制改写；
-- 非必要说明文档（如 README 正文）坚决不出现硬编码的历史版本标签与临时数值。
+- 坚决杜绝在面向用户的说明文档中出现硬编码的历史版本标签与临时数值。
 
 ---
 
 ## 核心决策记录
 
-- **2026-10-17 宿主契约纯净演进与零旧版包袱 (DSH 0.2.0-rc.2 全面对齐)**：
-  1. 彻底斩断历史包袱：按用户指示全面废弃 ≤0.1.1、0.1.2-rc 及 2.0.x 旧版兼容分支，删除 `legacy.nodes`、`anchorSeq`、`data.seq`、`data.content` 等容错代码；
-  2. 会话快照官方直连：消灭 `InputHistory.tsx` 中 `useChat` 历史幽灵探针与 `rawNodesOf` 四阶探测，直接通过 `useConversation((c) => c?.views.get('chat'))` 消费官方 `ChatSnapshot`（`order` 数组 + `nodes.get` 强类型存取）；
+- **2026-10-17 深度适配 DSH 0.2.1-rc.2 与废弃包彻底拔除 (v2.5.1)**：
+  1. 彻底对齐 0.2.1-rc.2 发版契约：官方全面下架运行时 invariant 插件及各包 `./invariant` 导出，插件彻底删除 `src/invariant.ts`，从导出与依赖中清除 `@deepseek-ai/dsh-invariants`，根除孤儿产物；
+  2. 官方推荐 `engines.dsh` 字段规范：在 `package.json` 的 `engines` 中显式添加 `"dsh": ">=0.2.0-rc.2"`，并在 `peerDependencies` 中将 `@deepseek-ai/dsh-*` 全面支持 0.2.0-rc.2 与 0.2.1-rc.2 全系；
+  3. 双真源闭环验证：GitHub Release `v2.5.1` 成功挂牌，npm 官方源直连核验 `dist-tags.latest` 成功同步为 `2.5.1`。
+- **2026-10-17 宿主契约纯净演进与零旧版包袱 (v2.5.0)**：
+  1. 彻底斩断历史包袱：全面废弃 ≤0.1.1、0.1.2-rc 及 2.0.x 旧版兼容分支，删除 `legacy.nodes`、`anchorSeq`、`data.seq`、`data.content` 等容错代码；
+  2. 会话快照官方直连：消灭 `InputHistory.tsx` 中 `useChat` 幽灵探针与 `rawNodesOf` 四阶探测，直接通过 `useConversation((c) => c?.views.get('chat'))` 消费官方 `ChatSnapshot`（`order` 数组 + `nodes.get` 强类型存取）；
   3. 客户端显式服务依赖双导出：`index.ts` 补齐 `export default { apply, inject }` 与具名双导出，彻底杜绝隔离新实例冷启动未就绪报错（`web boot: 1 entry did not activate`）；
-  4. 专用测试隔离实例真机真值闭环：搭建独立 profile `dsh-ph-isolated-test`（高位端口 3899，mklink /J 直通联接，绝对不触碰主用户 3080 实例），真实验证 `__DSH_BOOT__` 清单注入与 `client.js` 200 分发及现代 `views.get` 源码特征；新增 `test/nodes.test.ts`，单测套件扩充至 **74 项全绿**。
+  4. 专用测试隔离实例真机真值闭环：搭建独立 profile `dsh-ph-isolated-test`（高位端口 3899，mklink /J 直通联接，绝对不触碰主用户 3080 实例），双真源验证 `__DSH_BOOT__` 清单注入与 `client.js` 200 分发及现代 `views.get` 源码特征；新增 `test/nodes.test.ts`，单测套件扩充至 **74 项全绿**。
 - **2026-10-10 宿主元信息硬约束与图标体积压制 (v2.4.1)**：
   1. 契约定位：发现宿主 `plugin-manager` 加载插件 `package.json` 元信息时施加的 `icon exceeds 256 KiB` 强校验硬边界；
   2. 高保真重采样压制：采用 Lanczos 256×256 算法将 `assets/icon.png` 从 987 KiB 压缩至 77.63 KiB（缩减 92%），杜绝宿主加载崩溃，确立 ≤100 KiB 工程安全水位。
