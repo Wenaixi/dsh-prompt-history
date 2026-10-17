@@ -63,8 +63,8 @@
 | `SettingsCard.tsx` | **自绘配置组件**：划分四大功能区（复制剪贴板、历史手势、历史搜索、健康维护），原生主题 Token（`--dsw-*`）自绘单选面板与官方 `Switch`，支持一键自愈。 |
 | `editor.ts` | **DOM 编辑器适配器（真实缝隙）**：兼顾 `textarea` 与 Lexical `contenteditable`，精准判定段落 `<p>` 与软换行 `<br>` 视觉行首末行，杜绝多行误吞。 |
 | `claim-guard.ts` | **纯函数守卫**：`hasInlineSlash`，判定光标处于段前有正文的行内斜杠。 |
-| `nodes.ts` | **AST 容差解析器**：抹平 DSH 多代会话消息节点结构差异（0.1.1 / 0.1.2 rc / 2.0.x）。 |
-| `index.ts` | **客户端装配入口**：插槽注册、配置卡注入与 `inputTriggers` 猴补（通过 `ctx.effect` + `ORIG_TRACK` Symbol + `WeakRef` 实现 100% 可逆生命周期）。 |
+| `nodes.ts` | **现代会话消息解析器（纯函数）**：直接对齐 DSH 0.2.0-rc.2 `records.d.ts` 的 `UserMessageNode` 与 `SteeringMessageNode` 契约，彻底清除历史多代 AST 容错分支。 |
+| `index.ts` | **客户端装配入口**：插槽注册、配置卡注入、`export default { apply, inject }` 显式依赖声明与 `inputTriggers` 猴补（通过 `ctx.effect` + `ORIG_TRACK` Symbol + `WeakRef` 实现 100% 可逆生命周期）。 |
 
 ---
 
@@ -89,7 +89,7 @@
 ### 门禁执行序列
 ```sh
 node node_modules/typescript/bin/tsc --noEmit             # 1. 静态类型检查 (0 错误)
-node --experimental-strip-types --test test/*.test.ts     # 2. 68 项纯 Node 原生单测全绿 (~500ms)
+node --experimental-strip-types --test test/*.test.ts     # 2. 74 项纯 Node 原生单测全绿 (~660ms)
 pnpm build                                                # 3. 两步构建: tsc 声明到 lib/types + tsdown 打包
 npm pack --dry-run --json                                # 4. 产物完整性与文件白名单校验
 ```
@@ -125,6 +125,11 @@ npm pack --dry-run --json                                # 4. 产物完整性与
 
 ## 核心决策记录
 
+- **2026-10-17 宿主契约纯净演进与零旧版包袱 (DSH 0.2.0-rc.2 全面对齐)**：
+  1. 彻底斩断历史包袱：按用户指示全面废弃 ≤0.1.1、0.1.2-rc 及 2.0.x 旧版兼容分支，删除 `legacy.nodes`、`anchorSeq`、`data.seq`、`data.content` 等容错代码；
+  2. 会话快照官方直连：消灭 `InputHistory.tsx` 中 `useChat` 历史幽灵探针与 `rawNodesOf` 四阶探测，直接通过 `useConversation((c) => c?.views.get('chat'))` 消费官方 `ChatSnapshot`（`order` 数组 + `nodes.get` 强类型存取）；
+  3. 客户端显式服务依赖双导出：`index.ts` 补齐 `export default { apply, inject }` 与具名双导出，彻底杜绝隔离新实例冷启动未就绪报错（`web boot: 1 entry did not activate`）；
+  4. 专用测试隔离实例真机真值闭环：搭建独立 profile `dsh-ph-isolated-test`（高位端口 3899，mklink /J 直通联接，绝对不触碰主用户 3080 实例），真实验证 `__DSH_BOOT__` 清单注入与 `client.js` 200 分发及现代 `views.get` 源码特征；新增 `test/nodes.test.ts`，单测套件扩充至 **74 项全绿**。
 - **2026-10-10 宿主元信息硬约束与图标体积压制 (v2.4.1)**：
   1. 契约定位：发现宿主 `plugin-manager` 加载插件 `package.json` 元信息时施加的 `icon exceeds 256 KiB` 强校验硬边界；
   2. 高保真重采样压制：采用 Lanczos 256×256 算法将 `assets/icon.png` 从 987 KiB 压缩至 77.63 KiB（缩减 92%），杜绝宿主加载崩溃，确立 ≤100 KiB 工程安全水位。

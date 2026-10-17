@@ -44,26 +44,16 @@ export type InputHistoryProps = PropsRuntime<'conversation.input.right'>
 /** Suggestions menu query selector: wait for trigger menu before taking Up/Down keys. */
 const OPEN_MENU = '[role="listbox"], [data-trigger-menu]'
 
-interface ChatLike {
-  nodes?: unknown
-  legacy?: { nodes?: unknown }
-  order?: readonly string[]
-  removed?: boolean
+/** DSH 0.2.0-rc.2 现代 Chat 视图快照契约。 */
+interface ChatSnapshot {
+  readonly order?: readonly string[]
+  readonly nodes?: { get?: (key: string) => unknown }
 }
 
-type SelectorHook = (select: (snapshot: ChatLike) => unknown) => unknown
-
-/** Pull the ordered node array out of whichever snapshot shape is present across DSH generations. */
-function rawNodesOf(snapshot: ChatLike): readonly unknown[] {
-  const legacy = snapshot.legacy?.nodes
-  if (Array.isArray(legacy)) return legacy
-  const order = snapshot.order
-  const store = snapshot.nodes as { get?: (key: string) => unknown } | undefined
-  if (Array.isArray(order) && store !== undefined && typeof store.get === 'function') {
-    return order.map((key) => store.get?.(key)).filter((n): n is unknown => n !== null && n !== undefined)
+declare module '@deepseek-ai/dsh-client-ui-conversation/client' {
+  interface ConversationViewSnapshotMap {
+    chat: ChatSnapshot
   }
-  if (Array.isArray(snapshot.nodes)) return snapshot.nodes
-  return []
 }
 
 /** 实时活跃编辑上下文，供全局事件监听器安全读取防闭包过期。 */
@@ -283,19 +273,20 @@ function usePromptHistoryHotkeys(params: {
 }
 
 export function InputHistory(props: InputHistoryProps): null {
-  const { useInput, useSession, inputActions, sessionId } = props
-  const useChat = (props as InputHistoryProps & { useChat?: unknown }).useChat
-  const nodesHook = (typeof useChat === 'function' ? useChat : useSession) as SelectorHook | undefined
-  const sessionHook = useSession as SelectorHook | undefined
+  const { useInput, useSession, useConversation, inputActions, sessionId } = props
 
   const draft = (useInput((s) => s.draft) as string | undefined) ?? ''
   const phase = (useInput((s) => (s as { phase?: unknown }).phase) as string | undefined) ?? ''
-  const rawNodes = (nodesHook?.((s: ChatLike) => rawNodesOf(s)) as readonly unknown[] | undefined) ?? []
+  const chat = useConversation?.((c) => c?.views.get('chat'))
+  const rawNodes = useMemo(() => {
+    if (chat === undefined || !Array.isArray(chat.order) || typeof chat.nodes?.get !== 'function') return []
+    return chat.order.map((key) => chat.nodes?.get?.(key)).filter((n): n is unknown => n !== null && n !== undefined)
+  }, [chat])
   const messages = useMemo(
     () => rawNodes.map(promptMessage).filter((m): m is PromptMessage => m !== null),
     [rawNodes],
   )
-  const removed = (sessionHook?.((s) => s.removed) as boolean | undefined) ?? false
+  const removed = (useSession((s) => s.removed) as boolean | undefined) ?? false
 
   const liveRef = useRef<LiveEditorContext>({ draft, phase, removed, inputActions })
   liveRef.current = { draft, phase, removed, inputActions }

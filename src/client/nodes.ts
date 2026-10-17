@@ -1,77 +1,57 @@
 /**
- * Tolerant conversation-node reading across DSH generations.
+ * DSH 0.2.0-rc.2 现代会话消息节点解析器。
  *
- * ≤ 0.1.1 (web): session nodes are `{ kind, seq, content: ContentBlock[] }`.
- * 0.1.2 rc (web): the same old-shaped array is exposed as the chat snapshot's
- *   `legacy.nodes` (and `nodes` holds a ChatNodeStore). 2.0.x (desktop) nodes
- *   are `chatNode`-shaped `{ key, kind, ..., anchorSeq, data }` with the text
- *   content under `data.content`. Everything below normalizes one node to the
- *   three facts the plugin needs: kind, seq, plain text.
+ * 遵循官方 records.d.ts 的 UserMessageNode 与 SteeringMessageNode 契约，
+ * 抛弃所有历史多代兼容分支，直接提取 seq、time 与 content 正文。
  */
 
 export interface PromptMessage {
-  readonly kind: string
-  /** Stable order identity for append-once dedup. */
+  readonly kind: 'user' | 'steering' | string
+  /** 稳定排序序号，用于增量去重与顺序排列。 */
   readonly seq: number
-  /** Trimmed plain text of the message, or null when empty/unsupported. */
+  /** 用户消息纯文本正文，空内容或不支持类型时为 null。 */
   readonly text: string | null
-  /** Unix epoch ms of the source event; 0 when unavailable (age hidden). */
+  /** 会话源事件的 Unix 毫秒时间戳；不可用时为 0。 */
   readonly time: number
 }
 
-type NodeLike = {
+interface StandardMessageNode {
   kind?: unknown
   seq?: unknown
-  anchorSeq?: unknown
-  content?: unknown
-  data?: unknown
   time?: unknown
-  timestamp?: unknown
+  content?: unknown
 }
 
-/** The node's ordering identity: anchorSeq (new), then seq (old), then data.seq. */
-export function nodeSeq(node: NodeLike): number {
-  for (const key of ['anchorSeq', 'seq'] as const) {
-    const value = node[key]
-    if (typeof value === 'number' && Number.isFinite(value)) return value
-  }
-  const data = node.data as { seq?: unknown } | undefined
-  return typeof data?.seq === 'number' && Number.isFinite(data.seq) ? data.seq : 0
+/** 提取现代节点序号 seq。 */
+export function nodeSeq(node: StandardMessageNode): number {
+  return typeof node.seq === 'number' && Number.isFinite(node.seq) ? node.seq : 0
 }
 
-/**
- * The node's source timestamp (Unix epoch ms): `time`, `data.time`,
- * `data.timestamp`, `timestamp`; 0 when unavailable or non-finite.
- */
-export function nodeTime(node: NodeLike): number {
-  const data = node.data as { time?: unknown; timestamp?: unknown } | undefined
-  for (const value of [node.time, data?.time, data?.timestamp, node.timestamp]) {
-    if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value
-  }
-  return 0
+/** 提取现代节点时间戳 time（毫秒）。 */
+export function nodeTime(node: StandardMessageNode): number {
+  return typeof node.time === 'number' && Number.isFinite(node.time) && node.time > 0 ? node.time : 0
 }
 
-/** The node's text content blocks (old `content` or new `data.content`). */
-function textBlocks(node: NodeLike): unknown {
-  const content = node.content
-  if (Array.isArray(content)) return content
-  const data = node.data as { content?: unknown } | undefined
-  if (data !== undefined && Array.isArray(data.content)) return data.content
-  return []
-}
-
-/** Normalize one node into {kind, seq, text}; null for non-text/unsupported. */
+/** 将现代会话节点标准化为 PromptMessage；非用户文本消息返回 null。 */
 export function promptMessage(node: unknown): PromptMessage | null {
-  const n = node as NodeLike | null | undefined
-  if (n === null || n === undefined) return null
+  if (node === null || typeof node !== 'object') return null
+  const n = node as StandardMessageNode
   if (n.kind !== 'user' && n.kind !== 'steering') return null
+
+  if (!Array.isArray(n.content)) return null
   let text = ''
-  for (const block of textBlocks(n) as ReadonlyArray<{ type?: unknown; text?: unknown }>) {
+  for (const block of n.content as ReadonlyArray<{ type?: unknown; text?: unknown }>) {
     if (block !== null && typeof block === 'object' && block.type === 'text' && typeof block.text === 'string') {
       text += block.text
     }
   }
+
   const trimmed = text.trim()
   if (trimmed === '') return null
-  return { kind: n.kind as string, seq: nodeSeq(n), text: trimmed, time: nodeTime(n) }
+  return {
+    kind: n.kind,
+    seq: nodeSeq(n),
+    text: trimmed,
+    time: nodeTime(n),
+  }
 }

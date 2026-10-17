@@ -170,3 +170,6 @@ export function apply(ctx: ClientContext): void {
     }, 'dsh-prompt-history: input triggers patch')
   })
 }
+
+export default { apply, inject }
+

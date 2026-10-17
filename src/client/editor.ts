@@ -1,13 +1,9 @@
 /**
- * Composer editor abstraction for dsh-prompt-history.
+ * DSH 0.2.0-rc.2 输入框编辑器底层适配器。
  *
- * DSH ≤ 0.1.1: the composer input is a <textarea> inside
- * `[data-composer-card]` — selections/carets read off selectionStart/End.
- * DSH ≥ 0.1.2: the composer input is a Lexical contenteditable host
- * (`[data-composer-input]`); draft writes still flow through
- * `inputActions.setDraft`, and caret/selection read off the DOM Selection.
- * Everything editor-shaped goes through this module so both hosts behave the
- * same from the plugin's point of view.
+ * 现代 DSH 采用 Lexical contenteditable 宿主（`[data-composer-input]`），
+ * 内部草稿修改通过 `inputActions.setDraft` 流转，选区与光标映射通过 DOM Selection 与 TreeWalker 计算；
+ * 同时保持对原生单行与多行编辑器的容积适配。精准判定视觉与逻辑行首末行，防止方向键历史回溯误吞正常多行光标移动。
  */
 
 export const COMPOSER_CARD = '[data-composer-card]'
