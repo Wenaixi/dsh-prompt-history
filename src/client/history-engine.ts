@@ -133,7 +133,6 @@ export class PromptHistoryEngine {
   private readonly clock: EngineClock
 
   private history: HistoryRecord[] = []
-  private seen: Set<number> = new Set()
   private currentSessionId: string | null = null
   private sessionHistories: Map<string, HistoryRecord[]> = new Map()
   private browse: { step: number; saved: string; lastSet: string | null } = {
@@ -183,36 +182,42 @@ export class PromptHistoryEngine {
 
   /**
    * 核心排序与容量裁剪中枢：
-   * 1. 按文本去重（保留最新时间戳与最大 seq）；
-   * 2. 严格按毫秒时间戳 time 单调升序排序（最早在前，最新在末尾）；
+   * 1. 仅对同一时间戳下完全重复的事件进行合并（防止并发重复吸收完全同一事件），允许用户在不同时间发出相同提示词；
+   * 2. 严格按毫秒时间戳 time 单调升序排序（最早在前，最新在末尾）；同毫秒时按 seq 升序决胜；
    * 3. 严格按 maxHistoryItems 容量截断（保留最新的一端）。
    */
   private sortAndClamp(): void {
     if (this.history.length <= 1) return
 
-    const unique = new Map<string, HistoryRecord>()
+    // 1. 同时间戳下的重复事件合并（防完全同一条事件重复推入）
+    const deduplicated: HistoryRecord[] = []
     for (const record of this.history) {
-      const existing = unique.get(record.text)
-      if (!existing || record.time > existing.time || (record.seq ?? 0) > (existing.seq ?? 0)) {
-        unique.set(record.text, record)
+      const isExactSameMoment = deduplicated.some(
+        (d) =>
+          d.text === record.text &&
+          d.time === record.time &&
+          (d.seq === record.seq || d.seq === undefined || record.seq === undefined),
+      )
+      if (!isExactSameMoment) {
+        deduplicated.push(record)
       }
     }
 
-    const sorted = Array.from(unique.values()).sort((a, b) => {
+    // 2. 严格按时间戳 time 升序排序；时间相同按 seq 升序决胜
+    deduplicated.sort((a, b) => {
       if (a.time !== b.time) return a.time - b.time
       return (a.seq ?? 0) - (b.seq ?? 0)
     })
 
     const cap = this.config.maxHistoryItems
-    this.history = sorted.slice(-cap)
+    this.history = deduplicated.slice(-cap)
   }
 
-  /** 切换会话上下文：重置所有瞬态状态机，按单会话/全局模式恢复历史环，支持旧版全局数据平滑迁移 */
+  /** 切换会话上下文：重置所有瞬态状态机，按单会话/全局模式恢复历史环 */
   public switchSession(sessionId: string): void {
     this.browse = { step: 0, saved: '', lastSet: null }
     this.picker = null
     this.lastEscape = 0
-    this.seen = new Set()
 
     if (!this.config.historyEnabled) {
       this.history = []
@@ -233,14 +238,7 @@ export class PromptHistoryEngine {
     this.currentSessionId = sessionId
     let sessionRecords = this.sessionHistories.get(sessionId)
     if (sessionRecords === undefined) {
-      let loaded = [...this.storage.load(sessionId)]
-      // 平滑向下兼容迁移：若当前会话无本地历史，尝试从旧版本全局存储无损继承
-      if (loaded.length === 0) {
-        const legacyGlobal = this.storage.load()
-        if (legacyGlobal.length > 0) {
-          loaded = [...legacyGlobal]
-        }
-      }
+      const loaded = [...this.storage.load(sessionId)]
       const cap = this.config.maxHistoryItems
       sessionRecords = [...loaded.slice(-cap)]
       this.sessionHistories.set(sessionId, sessionRecords)
@@ -250,6 +248,25 @@ export class PromptHistoryEngine {
     if (this.history.length > 0) {
       this.persistCurrent()
     }
+  }
+
+  /**
+   * 平滑向下兼容迁移：
+   * 当且仅当当前会话在宿主侧已存在历史消息、且本地没有任何存储时，才从旧版本全局存储无损继承，杜绝污染全新会话。
+   */
+  public inheritLegacyGlobalIfEligible(hasHostMessages: boolean): boolean {
+    if (!this.config.historyEnabled || this.config.globalHistory) return false
+    if (!hasHostMessages || this.currentSessionId === null || this.history.length > 0) return false
+
+    const legacyGlobal = this.storage.load()
+    if (legacyGlobal.length > 0) {
+      const cap = this.config.maxHistoryItems
+      this.history = [...legacyGlobal.slice(-cap)]
+      this.sortAndClamp()
+      this.persistCurrent()
+      return true
+    }
+    return false
   }
 
   /** 主动录入用户提交的完整长文本（即发即入库、时间戳排序、容量裁剪、本地持久化） */
@@ -264,7 +281,7 @@ export class PromptHistoryEngine {
       ? { text, time: recordTime, seq }
       : { text, time: recordTime }
 
-    // 相邻去重与全环更新检查
+    // 仅在同时间戳连续重复时去重
     const last = this.history[this.history.length - 1]
     if (last !== undefined && last.text === text && recordTime === last.time) {
       return
@@ -290,10 +307,11 @@ export class PromptHistoryEngine {
       if (ignoreSpace && msg.text.startsWith(' ')) continue
 
       const msgTime = msg.time > 0 ? msg.time : this.clock.wallClockNow()
-      const existing = this.history.find((h) => h.text === msg.text)
+      // 判断完全相同的同一事件（同文本且同时间戳）
+      const existing = this.history.find((h) => h.text === msg.text && h.time === msgTime)
 
       if (existing === undefined) {
-        this.history.push({ text: msg.text, time: msgTime, seq: msg.seq })
+        this.history.push(msg.seq > 0 ? { text: msg.text, time: msgTime, seq: msg.seq } : { text: msg.text, time: msgTime })
         mutated = true
       } else if (existing.seq === undefined && msg.seq > 0) {
         // 补充序号上下文
@@ -316,7 +334,6 @@ export class PromptHistoryEngine {
     this.storage.remove?.(sessionId)
     if (this.currentSessionId === sessionId) {
       this.history = []
-      this.seen = new Set()
       this.browse = { step: 0, saved: '', lastSet: null }
       this.picker = null
     }

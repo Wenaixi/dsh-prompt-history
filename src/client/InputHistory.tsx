@@ -245,11 +245,10 @@ function usePromptHistoryHotkeys(params: {
       const isFirst = host !== null ? isCaretOnFirstLine(host) : true
       const isLast = host !== null ? isCaretOnLastLine(host) : true
 
-      // 提交感知：用户按下 Enter 发送非空草稿时，无损即时入库（不拦截事件冒泡，交由宿主执行实际发送）
-      if (e.key === 'Enter' && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey) {
-        if (!panelOpen && card.querySelector(OPEN_MENU) === null && live.draft.trim() !== '') {
-          engine.recordPrompt(live.draft)
-        }
+      // 键盘提交感知：用户按下 Enter 或 Ctrl/Cmd+Enter 发送非空草稿时即刻无损入库
+      const isEnterSubmit = e.key === 'Enter' && !e.shiftKey && !e.altKey
+      if (isEnterSubmit && !panelOpen && card.querySelector(OPEN_MENU) === null && live.draft.trim() !== '') {
+        engine.recordPrompt(live.draft)
       }
 
       const { handled, action } = engine.onKeyDown({
@@ -301,6 +300,12 @@ export function InputHistory(props: InputHistoryProps): null {
   const messagesRef = useRef(messages)
   messagesRef.current = messages
 
+  // 记录最近一次非空草稿，用于鼠标点击发送或快捷键提交时的零延迟沉淀
+  const lastNonEmptyDraftRef = useRef(draft)
+  if (draft.trim() !== '') {
+    lastNonEmptyDraftRef.current = draft
+  }
+
   // 浮层控制器深模块实例
   const overlayRef = useRef<HistoryOverlayController | null>(null)
   if (overlayRef.current === null) {
@@ -314,6 +319,24 @@ export function InputHistory(props: InputHistoryProps): null {
     engineRef.current = new PromptHistoryEngine(getPrefs())
   }
   const engine = engineRef.current
+
+  // 提交态跃迁监听：当 phase 变为 submitting/adjudicating 时，全渠道捕获用户提交（涵盖鼠标点击发送按钮）
+  const prevPhaseRef = useRef(phase)
+  useEffect(() => {
+    const prev = prevPhaseRef.current
+    const isNowSubmitting =
+      (phase === 'submitting' || phase === 'adjudicating') &&
+      prev !== 'submitting' &&
+      prev !== 'adjudicating'
+
+    if (isNowSubmitting) {
+      const text = lastNonEmptyDraftRef.current
+      if (text.trim() !== '') {
+        engine.recordPrompt(text)
+      }
+    }
+    prevPhaseRef.current = phase
+  }, [phase, engine])
 
   /** 渲染搜索快照到历史浮层 */
   const renderSnapshot = (snapshot: SearchSnapshot): void => {
@@ -374,11 +397,12 @@ export function InputHistory(props: InputHistoryProps): null {
     })
   }, [engine])
 
-  // 会话切换：重置引擎状态并关闭浮层，若已有消息立即增量补充
+  // 会话切换：重置引擎状态并关闭浮层；若宿主已有历史消息则按需继承并增量补充
   useEffect(() => {
     engine.switchSession(sessionId)
     overlay.hide()
     if (messages.length > 0) {
+      engine.inheritLegacyGlobalIfEligible(true)
       engine.supplementMessages(messages)
     }
   }, [engine, sessionId, overlay])
@@ -390,12 +414,8 @@ export function InputHistory(props: InputHistoryProps): null {
     }
   }, [engine, removed, sessionId])
 
-  // 消息流进入与周期性旧消息巡检补充：每 1500ms 兜底巡检视口滚动加载的旧历史
+  // 周期性旧消息巡检补充：每 1500ms 独立兜底巡检视口滚动加载的旧历史
   useEffect(() => {
-    if (messages.length > 0) {
-      engine.supplementMessages(messages)
-    }
-
     const timer = window.setInterval(() => {
       const currentMsgs = messagesRef.current
       if (currentMsgs.length > 0) {
@@ -406,7 +426,7 @@ export function InputHistory(props: InputHistoryProps): null {
     return () => {
       window.clearInterval(timer)
     }
-  }, [engine, messages, sessionId])
+  }, [engine])
 
   // 草稿变更驱动：感知用户编辑脱离或差量搜索更新
   useEffect(() => {

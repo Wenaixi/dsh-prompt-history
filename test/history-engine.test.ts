@@ -490,7 +490,7 @@ test('14. 会话移除清理：cleanupSession 释放已持久化的单会话存�
   assert.equal(engine.getHistory().length, 0, '当前活跃历史也同步清空')
 })
 
-test('15. 旧版全局数据平滑迁移：无 session 专用缓存时自动继承旧版 global 存储记录', () => {
+test('15. 旧版全局数据平滑迁移：全新会话不被污染，老会话按需继承旧版 global 存储记录', () => {
   const storage = new MockStorage()
   const clock = new MockClock()
 
@@ -503,10 +503,15 @@ test('15. 旧版全局数据平滑迁移：无 session 专用缓存时自动继�
 
   const engine = new PromptHistoryEngine(baseConfig, storage, clock)
 
-  // 打开一个旧会话（此前该会话从未使用新版 session 隔离 key）
-  engine.switchSession('sess-legacy-user')
+  // 1. 打开一个全新空白会话（宿主无历史消息）
+  engine.switchSession('sess-brand-new')
+  assert.equal(engine.getHistory().length, 0, '全新会话切入时历史保持纯净空白，绝不被旧全局历史污染！')
+  assert.equal(storage.load('sess-brand-new').length, 0, '全新会话存储也保持为空')
 
-  // 核心断言：自动从旧版 global 存储无缝迁移继承，历史记录不会变成空！
+  // 2. 打开一个宿主已有消息的老会话
+  engine.switchSession('sess-legacy-user')
+  const inherited = engine.inheritLegacyGlobalIfEligible(true)
+  assert.equal(inherited, true, '检测到老会话且本地无存储，触发无损继承')
   assert.equal(engine.getHistory().length, 3, '从旧版 global 存储成功平滑继承历史记录')
   assert.equal(engine.getHistory()[0].text, 'legacy prompt 1')
   assert.equal(engine.getHistory()[2].text, 'legacy prompt 3')
@@ -580,4 +585,33 @@ test('17. supplementMessages 周期性补充幂等性：重复调用不产生重
   assert.equal(engine.getHistory().length, 3, '严格裁剪至容量上限 3')
   assert.equal(engine.getHistory()[0].text, 'msg 2')
   assert.equal(engine.getHistory()[2].text, 'msg 4')
+})
+
+test('18. 允许不同时间点重复提示词（如多次说继续）按时间戳各就其位，对齐终端历史规范', () => {
+  const engine = new PromptHistoryEngine(baseConfig, new MockStorage(), new MockClock())
+  engine.switchSession('sess-recurring')
+
+  // 用户在不同时间发送了相同的提示词
+  engine.recordPrompt('继续', 1000)
+  engine.recordPrompt('写点代码', 2000)
+  engine.recordPrompt('继续', 3000)
+
+  const history = engine.getHistory()
+  assert.equal(history.length, 3, '不同时间点发出的重复提示词完整保留，绝不被全会话强制去重')
+  assert.equal(history[0].text, '继续')
+  assert.equal(history[0].time, 1000)
+  assert.equal(history[1].text, '写点代码')
+  assert.equal(history[1].time, 2000)
+  assert.equal(history[2].text, '继续')
+  assert.equal(history[2].time, 3000)
+
+  // 上下键回溯：先回溯出 T=3000 的“继续”，再回溯“写点代码”，再回溯 T=1000 的“继续”
+  const up1 = engine.onKeyDown({ key: 'ArrowUp', currentDraft: '', isCaretOnFirstLine: true, isCaretOnLastLine: true })
+  assert.deepEqual(up1.action, { type: 'set-draft', text: '继续', caret: 'start' })
+
+  const up2 = engine.onKeyDown({ key: 'ArrowUp', currentDraft: '继续', isCaretOnFirstLine: true, isCaretOnLastLine: true })
+  assert.deepEqual(up2.action, { type: 'set-draft', text: '写点代码', caret: 'start' })
+
+  const up3 = engine.onKeyDown({ key: 'ArrowUp', currentDraft: '写点代码', isCaretOnFirstLine: true, isCaretOnLastLine: true })
+  assert.deepEqual(up3.action, { type: 'set-draft', text: '继续', caret: 'start' })
 })

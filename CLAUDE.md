@@ -2,7 +2,7 @@
 
 ## 项目定位
 
-- **标识**：包名 `@wenaixi/dsh-prompt-history`（scoped，npm 与 GitHub 已发布，最新版本 `v2.6.1`）。仓库 `origin` = Wenaixi/dsh-prompt-history，`upstream` = Xiaofei-fei/dsh-prompt-history（只读）。主分支 `main`。
+- **标识**：包名 `@wenaixi/dsh-prompt-history`（scoped，npm 与 GitHub 已发布，最新版本 `v2.6.2`）。仓库 `origin` = Wenaixi/dsh-prompt-history，`upstream` = Xiaofei-fei/dsh-prompt-history（只读）。主分支 `main`。
 - **定位**：DeepSeek Harness (DSH) Web 输入框终端级交互套件——Claude Code 风格顺序历史回溯、双击 Esc 搜索面板、选中文本引用/自动复制、鼠标右键直接粘贴、前导空格阅后即焚与长会话本地无损持久化记忆。
 - **形态**：Host 半侧声明配置 Schema 与抑制自动表单；浏览器半侧交付交互、自绘配置卡与双语词典。零第三方运行时依赖。
 
@@ -97,7 +97,7 @@
 ### 门禁执行序列
 ```sh
 node node_modules/typescript/bin/tsc --noEmit             # 1. 静态类型检查 (0 错误)
-node --experimental-strip-types --test test/*.test.ts     # 2. 81 项纯 Node 原生单测全绿 (~500ms)
+node --experimental-strip-types --test test/*.test.ts     # 2. 82 项纯 Node 原生单测全绿 (~360ms)
 pnpm build                                                # 3. 两步构建: tsc 声明到 lib/types + tsdown 打包
 npm pack --dry-run --json                                # 4. 产物完整性与文件白名单校验 (41 文件)
 ```
@@ -133,20 +133,20 @@ npm pack --dry-run --json                                # 4. 产物完整性与
 
 ## 核心决策记录
 
-- **2026-10-18 长会话输入端无损持久化架构与时序巡检对齐 (v2.6.1)**：
+- **2026-10-18 双轴审查缺陷彻底根治与全渠道提交捕获 (v2.6.2)**：
   1. **宿主事件窗口（Session Event Window）根因确证**：查阅 `@deepseek-ai/dsh-client-ui-conversation` 与 `dsh-client-ui-chat`，确证长会话上方消息未加载属于宿主 Event Window 机制，导致 `views.get('chat').order` 仅包含当前视口内的切片节点；
   2. **右侧导航轨（TurnNavigator）复用瓶颈排除**：查明右侧历史小地图由 `mergeTurnRailItems` 消费 `turnOutline` 投影生成，但受宿主硬约束 `PROMPT_PREVIEW_LIMIT = 50` 截断、空白折叠（`replace(/\s+/g, " ")`）与非文本块剥离，属于严重有损大纲，坚决不能直接作为提示词回填；
   3. **方案 B 输入端本地无损持久化与平滑迁移架构落地**：
      - `StorageDriver` 扩展 `scope?: string` 与 `remove?(scope: string)`，按 `dsh-prompt-history.session:<id>` 实行会话级隔离存储；
-     - **旧版数据无缝继承（Legacy Global Fallback）**：`switchSession` 在会话本地无历史时自动从旧版 `dsh-prompt-history.global` 无损继承数据并沉淀到该会话，彻底解决“升级后旧记录全丢”的痛点；
-     - **周期巡检增量补充（Interval Reconciliation）**：在 `InputHistory.tsx` 挂载 1500ms 轻量安全巡检定时器，与会话切换深度联动，增量调用 `supplementMessages` 兜底捕获视口向上滚动新加载的旧轮次；
-     - **严格单调时间戳升序排序（Strict Timestamp Ordering）**：提炼 `sortAndClamp()`，无论消息来自主动即发即入库、旧版继承还是逆向滚动加载，全量按 `time`（毫秒）与 `seq` 严格单调升序排列，彻底杜绝历史乱序与时序倒挂；
-     - 实现 `recordPrompt(text)` 主动录入并在 `usePromptHistoryHotkeys` 中捕获纯 Enter 提交，在草稿发出的瞬间无损保全多行换行与长代码块，即发即入库；
+     - **新会话零污染与老会话无缝继承**：`switchSession` 初始保持空白，仅在调用方确认宿主已有历史消息时调用 `inheritLegacyGlobalIfEligible(true)` 继承旧版 `dsh-prompt-history.global`，彻底根除新会话被旧全局历史污染的缺陷；
+     - **周期巡检增量补充（Interval Reconciliation）**：在 `InputHistory.tsx` 挂载 1500ms 轻量安全巡检定时器，与会话生命周期深度联动，独立增量补充视口滚动加载的旧历史；
+     - **严格单调时间戳升序排序（Strict Monotonic Timestamp Ordering）**：提炼 `sortAndClamp()`，仅在同时间戳完全相同的极端情况下合并，允许用户在不同时间多次发送相同提示词（如多次“继续”），按时间戳各就其位；时间戳相同时按 seq 升序决胜，消灭时序倒挂；
+     - **全渠道提交捕获**：结合键盘纯 Enter、Ctrl/Cmd+Enter 监听与 `phase`（`submitting`/`adjudicating`）跃迁，100% 覆盖鼠标点击发送按钮与快捷键提交；
      - 优化 `ingestMessages` 避免宿主回声推送将已有历史重复顶出；监听 `useSession((s) => s.removed)`，在会话归档删除时调用 `cleanupSession` 释放存储；
-  4. **设置卡 UI 深度精简**：从 `SettingsCard.tsx` 中彻底删除“配置健康与自愈维护”和“高级维护与配置提取”UI 区域，清理双语字典（`locales.ts`）孤儿词条，Bundle 体积缩减至 103.88 kB（gzip ~30.95 kB）；
+  4. **代码纯净度与 UI 深度精简**：从 `SettingsCard.tsx` 中彻底删除“配置健康与自愈维护”和“高级维护与配置提取”UI 区域，清理双语字典（`locales.ts`）全部孤儿词条（包括 `settings.group.input` / `copy`），物理删除孤儿死字段 `private seen`，Bundle 体积维持在 ~104.7 kB（gzip ~31.2 kB）；
   5. **实机独立测试闭环与双真源发布**：
      - 搭建独立隔离实例 `dsh-verify-live`（端口 59237，direct source junction 联接），编写并在无头 Chrome CDP 下全绿通过 6 项端到端实机路测；
-     - 单测套件扩充至 **81 项纯 Node 原生单测全绿**，GitHub Release `v2.6.0` 成功挂牌，npm 官方源直连核验权威上线。
+     - 单测套件扩充至 **82 项纯 Node 原生单测全绿**，GitHub Release `v2.6.2` 成功挂牌，npm 官方源直连核验权威上线。
 - **2026-10-17 深度适配 DSH 0.2.1-rc.2 与废弃包彻底拔除 (v2.5.1)**：
   1. 彻底对齐 0.2.1-rc.2 发版契约：官方全面下架运行时 invariant 插件及各包 `./invariant` 导出，插件彻底删除 `src/invariant.ts`，从导出与依赖中清除 `@deepseek-ai/dsh-invariants`，根除孤儿产物；
   2. 官方推荐 `engines.dsh` 字段规范：在 `package.json` 的 `engines` 中显式添加 `"dsh": ">=0.2.0-rc.2"`，并在 `peerDependencies` 中将 `@deepseek-ai/dsh-*` 全面支持 0.2.0-rc.2 与 0.2.1-rc.2 全系；

@@ -4,6 +4,24 @@
 
 ## [Unreleased]
 
+## [2.6.2] - 2026-10-18
+
+### 双轴深度审查缺陷根治与全渠道提交捕获 (Deep Review Hardening & Precision Refactor)
+
+- **新会话零污染保障 (Isolated New Sessions)**：
+  - 修复 `switchSession` 无脑继承旧版全局历史的边界缺陷，新创建的空白会话初始化保持绝对纯洁空白；
+  - 仅在会话在宿主侧已存在历史消息、且本地无记录时，才通过 `inheritLegacyGlobalIfEligible(true)` 触发旧版全局数据继承。
+- **重复提示词按真实时间戳共存 (Recurring Prompt Preservation)**：
+  - 重构 `sortAndClamp`，仅在同毫秒时间戳下的完全同一事件合并去重，允许用户在不同时间多次发送相同提示词（如多次“继续”、“/plan”），按时间戳各就其位；
+  - 修复排序比较器逻辑，严格先比较时间戳 `a.time - b.time`，同毫秒再比较 `(a.seq ?? 0) - (b.seq ?? 0)`，消灭时序倒挂。
+- **全渠道提交零延迟捕获 (Full-channel Ingestion)**：
+  - 协调器层监听 `phase`（`submitting`/`adjudicating`）跃迁并结合键盘监听，100% 覆盖鼠标点击右下角发送按钮、纯 Enter、Ctrl/Cmd+Enter，草稿发出瞬间无损入库。
+- **代码纯净化与坏味道消除 (Dead Code Purge & Hygiene)**：
+  - 物理删除孤儿死字段 `private seen: Set<number>`，清理双语字典未引用词条（`settings.group.input` / `copy`），删除临时路测脚本消灭 scope creep；
+  - 客户端 Bundle 体积保持在极致精简水平（gzip ~31.2 kB）。
+- **测试套件扩充**：
+  - 纯 Node 原生单测套件扩充至 **82 项 100% 全绿**（耗时仅 ~360ms）。
+
 ## [2.6.1] - 2026-10-18
 
 ### 旧版全局存储无缝继承、周期性巡检兜底与时间戳单调时序架构 (Legacy Fallback, Interval Reconciliation & Strict Timestamp Ordering)
