@@ -298,6 +298,9 @@ export function InputHistory(props: InputHistoryProps): null {
   const liveRef = useRef<LiveEditorContext>({ draft, phase, removed, inputActions })
   liveRef.current = { draft, phase, removed, inputActions }
 
+  const messagesRef = useRef(messages)
+  messagesRef.current = messages
+
   // 浮层控制器深模块实例
   const overlayRef = useRef<HistoryOverlayController | null>(null)
   if (overlayRef.current === null) {
@@ -371,10 +374,13 @@ export function InputHistory(props: InputHistoryProps): null {
     })
   }, [engine])
 
-  // 会话切换：重置引擎状态并关闭浮层
+  // 会话切换：重置引擎状态并关闭浮层，若已有消息立即增量补充
   useEffect(() => {
     engine.switchSession(sessionId)
     overlay.hide()
+    if (messages.length > 0) {
+      engine.supplementMessages(messages)
+    }
   }, [engine, sessionId, overlay])
 
   // 会话被归档删除时，清理对应会话的持久化历史
@@ -384,10 +390,23 @@ export function InputHistory(props: InputHistoryProps): null {
     }
   }, [engine, removed, sessionId])
 
-  // 消息流进入：吸收并折叠去重
+  // 消息流进入与周期性旧消息巡检补充：每 1500ms 兜底巡检视口滚动加载的旧历史
   useEffect(() => {
-    engine.ingestMessages(messages)
-  }, [engine, messages])
+    if (messages.length > 0) {
+      engine.supplementMessages(messages)
+    }
+
+    const timer = window.setInterval(() => {
+      const currentMsgs = messagesRef.current
+      if (currentMsgs.length > 0) {
+        engine.supplementMessages(currentMsgs)
+      }
+    }, 1500)
+
+    return () => {
+      window.clearInterval(timer)
+    }
+  }, [engine, messages, sessionId])
 
   // 草稿变更驱动：感知用户编辑脱离或差量搜索更新
   useEffect(() => {

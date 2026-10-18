@@ -22,6 +22,7 @@ import {
 export interface HistoryRecord {
   readonly text: string
   readonly time: number
+  readonly seq?: number | undefined
 }
 
 export interface PromptHistoryConfig {
@@ -175,12 +176,38 @@ export class PromptHistoryEngine {
     const nextCap = this.config.maxHistoryItems
 
     if (this.history.length > nextCap) {
-      this.history.splice(0, this.history.length - nextCap)
+      this.sortAndClamp()
       this.persistCurrent()
     }
   }
 
-  /** 切换会话上下文：重置所有瞬态状态机，按单会话/全局模式恢复历史环 */
+  /**
+   * 核心排序与容量裁剪中枢：
+   * 1. 按文本去重（保留最新时间戳与最大 seq）；
+   * 2. 严格按毫秒时间戳 time 单调升序排序（最早在前，最新在末尾）；
+   * 3. 严格按 maxHistoryItems 容量截断（保留最新的一端）。
+   */
+  private sortAndClamp(): void {
+    if (this.history.length <= 1) return
+
+    const unique = new Map<string, HistoryRecord>()
+    for (const record of this.history) {
+      const existing = unique.get(record.text)
+      if (!existing || record.time > existing.time || (record.seq ?? 0) > (existing.seq ?? 0)) {
+        unique.set(record.text, record)
+      }
+    }
+
+    const sorted = Array.from(unique.values()).sort((a, b) => {
+      if (a.time !== b.time) return a.time - b.time
+      return (a.seq ?? 0) - (b.seq ?? 0)
+    })
+
+    const cap = this.config.maxHistoryItems
+    this.history = sorted.slice(-cap)
+  }
+
+  /** 切换会话上下文：重置所有瞬态状态机，按单会话/全局模式恢复历史环，支持旧版全局数据平滑迁移 */
   public switchSession(sessionId: string): void {
     this.browse = { step: 0, saved: '', lastSet: null }
     this.picker = null
@@ -206,35 +233,81 @@ export class PromptHistoryEngine {
     this.currentSessionId = sessionId
     let sessionRecords = this.sessionHistories.get(sessionId)
     if (sessionRecords === undefined) {
-      const loaded = this.storage.load(sessionId)
+      let loaded = [...this.storage.load(sessionId)]
+      // 平滑向下兼容迁移：若当前会话无本地历史，尝试从旧版本全局存储无损继承
+      if (loaded.length === 0) {
+        const legacyGlobal = this.storage.load()
+        if (legacyGlobal.length > 0) {
+          loaded = [...legacyGlobal]
+        }
+      }
       const cap = this.config.maxHistoryItems
       sessionRecords = [...loaded.slice(-cap)]
       this.sessionHistories.set(sessionId, sessionRecords)
     }
     this.history = sessionRecords
+    this.sortAndClamp()
+    if (this.history.length > 0) {
+      this.persistCurrent()
+    }
   }
 
-  /** 主动录入用户提交的完整长文本（即发即入库、去重、容量裁剪、本地持久化） */
-  public recordPrompt(text: string, time?: number): void {
+  /** 主动录入用户提交的完整长文本（即发即入库、时间戳排序、容量裁剪、本地持久化） */
+  public recordPrompt(text: string, time?: number, seq?: number): void {
     if (!this.config.historyEnabled) return
     const trimmed = text.trim()
     if (trimmed === '') return
     if (this.config.ignoreLeadingSpace && text.startsWith(' ')) return
 
-    const record: HistoryRecord = { text, time: time ?? this.clock.wallClockNow() }
-    const globalOn = this.config.globalHistory
-    const shouldPush = globalOn
-      ? !this.history.some((e) => e.text === text)
-      : this.history[this.history.length - 1]?.text !== text
+    const recordTime = typeof time === 'number' && time > 0 ? time : this.clock.wallClockNow()
+    const record: HistoryRecord = seq !== undefined
+      ? { text, time: recordTime, seq }
+      : { text, time: recordTime }
 
-    if (shouldPush) {
-      this.history.push(record)
-      const cap = this.config.maxHistoryItems
-      if (this.history.length > cap) {
-        this.history.splice(0, this.history.length - cap)
+    // 相邻去重与全环更新检查
+    const last = this.history[this.history.length - 1]
+    if (last !== undefined && last.text === text && recordTime === last.time) {
+      return
+    }
+
+    this.history.push(record)
+    this.sortAndClamp()
+    this.persistCurrent()
+  }
+
+  /**
+   * 周期性增量旧消息补充中枢：
+   * 无论旧消息是滚动加载还是异步回声，增量补充未记录条目并按时间戳单调升序严格对齐。
+   * @returns 是否产生了实际新增或时序更新
+   */
+  public supplementMessages(messages: ReadonlyArray<{ seq: number; text: string | null; time: number }>): boolean {
+    if (!this.config.historyEnabled || messages.length === 0) return false
+    const ignoreSpace = this.config.ignoreLeadingSpace ?? false
+    let mutated = false
+
+    for (const msg of messages) {
+      if (msg.text === null || msg.text.trim() === '') continue
+      if (ignoreSpace && msg.text.startsWith(' ')) continue
+
+      const msgTime = msg.time > 0 ? msg.time : this.clock.wallClockNow()
+      const existing = this.history.find((h) => h.text === msg.text)
+
+      if (existing === undefined) {
+        this.history.push({ text: msg.text, time: msgTime, seq: msg.seq })
+        mutated = true
+      } else if (existing.seq === undefined && msg.seq > 0) {
+        // 补充序号上下文
+        const idx = this.history.indexOf(existing)
+        this.history[idx] = { text: existing.text, time: existing.time, seq: msg.seq }
+        mutated = true
       }
+    }
+
+    if (mutated) {
+      this.sortAndClamp()
       this.persistCurrent()
     }
+    return mutated
   }
 
   /** 移除会话：清理内存与持久化存储中的对应会话条目 */
@@ -259,34 +332,9 @@ export class PromptHistoryEngine {
     }
   }
 
-  /** 吸收宿主消息流（幂等补全未知历史、去重过滤、容量裁剪） */
+  /** 吸收宿主消息流（委托给增量补充中枢） */
   public ingestMessages(messages: ReadonlyArray<{ seq: number; text: string | null; time: number }>): void {
-    const cap = this.config.maxHistoryItems
-    const ignoreSpace = this.config.ignoreLeadingSpace ?? false
-    let mutated = false
-
-    for (const msg of messages) {
-      if (this.seen.has(msg.seq)) continue
-      this.seen.add(msg.seq)
-      if (msg.text === null) continue
-      // 敏感指令与前导空格过滤
-      if (ignoreSpace && msg.text.startsWith(' ')) continue
-
-      // 如果当前历史环中已存在完全相同的文本（已被主动录入或已记录），不重复追加
-      if (this.history.some((e) => e.text === msg.text)) continue
-
-      this.history.push({ text: msg.text, time: msg.time })
-      mutated = true
-    }
-
-    if (this.history.length > cap) {
-      this.history.splice(0, this.history.length - cap)
-      mutated = true
-    }
-
-    if (mutated) {
-      this.persistCurrent()
-    }
+    this.supplementMessages(messages)
   }
 
   /**

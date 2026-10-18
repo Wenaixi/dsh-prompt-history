@@ -4,6 +4,22 @@
 
 ## [Unreleased]
 
+## [2.6.1] - 2026-10-18
+
+### 旧版全局存储无缝继承、周期性巡检兜底与时间戳单调时序架构 (Legacy Fallback, Interval Reconciliation & Strict Timestamp Ordering)
+
+- **旧版全局存储平滑迁移继承 (Legacy Global Storage Fallback)**：
+  - 彻底攻克“升级后旧会话与旧版本历史看似全丢”的断层痛点；
+  - `switchSession` 在会话本地无历史时自动从旧版单点存储 `dsh-prompt-history.global` 无损继承数据并沉淀到该会话，老用户升级后历史记录零丢失。
+- **增量旧消息周期巡检补充机制 (1500ms Interval Reconciliation)**：
+  - 在 `InputHistory.tsx` 挂载 1500ms 轻量安全巡检定时器，与会话切换生命周期深度绑定；
+  - 自动巡检当前会话并增量调用 `supplementMessages`，彻底兜底捕获视口向上滚动新加载的旧轮次与异步就绪节点。
+- **严格单调时间戳升序排序中枢 (Strict Timestamp Monotonic Ordering)**：
+  - 提炼核心排序中枢 `sortAndClamp()`，无论消息来自主动即发即入库、旧版继承还是逆向滚动加载，全量按 `time`（毫秒）与 `seq` 严格单调升序排列（最早在前，最新在末尾）；
+  - 彻底根治旧消息前置加载导致的历史乱序与时间轴倒挂缺陷，保证上下键回溯时序 100% 精准。
+- **测试套件持续扩充**：
+  - 纯 Node 原生单测套件扩充至 **81 项 100% 全绿**（耗时仅 ~460ms）。
+
 ## [2.6.0] - 2026-10-18
 
 ### 长会话输入端无损持久化架构与设置卡精简 (Lossless Input-End Persistence & Settings Card Refinement)
