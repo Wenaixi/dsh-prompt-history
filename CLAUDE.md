@@ -2,8 +2,8 @@
 
 ## 项目定位
 
-- **标识**：包名 `@wenaixi/dsh-prompt-history`（scoped，npm 与 GitHub 已发布，最新版本 `v2.5.1`）。仓库 `origin` = Wenaixi/dsh-prompt-history，`upstream` = Xiaofei-fei/dsh-prompt-history（只读）。主分支 `main`。
-- **定位**：DeepSeek Harness (DSH) Web 输入框终端级交互套件——Claude Code 风格顺序历史回溯、双击 Esc 搜索面板、选中文本引用/自动复制、鼠标右键直接粘贴与前导空格阅后即焚。
+- **标识**：包名 `@wenaixi/dsh-prompt-history`（scoped，npm 与 GitHub 已发布，最新版本 `v2.6.0`）。仓库 `origin` = Wenaixi/dsh-prompt-history，`upstream` = Xiaofei-fei/dsh-prompt-history（只读）。主分支 `main`。
+- **定位**：DeepSeek Harness (DSH) Web 输入框终端级交互套件——Claude Code 风格顺序历史回溯、双击 Esc 搜索面板、选中文本引用/自动复制、鼠标右键直接粘贴、前导空格阅后即焚与长会话本地无损持久化记忆。
 - **形态**：Host 半侧声明配置 Schema 与抑制自动表单；浏览器半侧交付交互、自绘配置卡与双语词典。零第三方运行时依赖。
 
 ---
@@ -14,6 +14,8 @@
 
 | 契约项 | 宿主事实与出处 | 插件实现约束 |
 |---|---|---|
+| **会话事件窗口裁剪** | 宿主采用事件窗口加载长会话（`dsh-client-ui-conversation/snapshot.d.ts`） | 较早消息处于 `unloaded` 态，未加载进 `chat.order`；必须由输入端本地持久化（方案 B）保证全量回溯 |
+| **右侧大纲有损截断** | 右侧导航轨由 `turnOutline` 投影生成，硬施加 `PROMPT_PREVIEW_LIMIT = 50` 截断与空白折叠（`dsh-session-turn-outline`） | 右侧大纲是有损摘要，绝不能直接作为原始提示词回填输入框 |
 | **引擎版本仲裁** | 0.2.1-rc.2 插件管理器优先按 `engines.dsh` 判定兼容性（`plugin-market`） | `package.json` 显式声明 `"engines": { "node": ">=20", "dsh": ">=0.2.0-rc.2" }` |
 | **诊断机制下架** | 0.2.1 系列彻底移除 `invariants` 插件与各包 `./invariant` 导出（`dsh-invariants`） | 彻底删除 `src/invariant.ts`，从导出、白名单与 peer 依赖中全量剔除 |
 | **触发档位压制** | `claimed` 态下 `detectTrigger` 硬跳过所有 `/`（`dsh-client-ui-input-trigger`） | `index.ts` 猴补 `sessionOf().track`，行内斜杠降级为 `plain` |
@@ -59,12 +61,12 @@
 
 | 模块文件 | 架构定位与核心职责 |
 |---|---|
-| `history-engine.ts` | **核心无头状态机（深模块）**：纯 TypeScript 驱动，存储环 FIFO 裁剪、顺序浏览、800ms 双击 Esc、IME 组字态避让与前导空格隐私过滤。脱机零 DOM 依赖。 |
+| `history-engine.ts` | **核心无头状态机（深模块）**：纯 TypeScript 驱动，会话级隔离存储（`scope` 支持）、主动即发即入库（`recordPrompt`）、存储环 FIFO 裁剪、顺序浏览、800ms 双击 Esc 与前导空格过滤。脱机零 DOM 依赖。 |
 | `history-overlay.ts` | **浮层渲染控制器（深模块）**：`HistoryOverlayController`，封装 DOM 骨架构建、高亮切片（`splitHighlighted`）、视口避让定位（`calculatePanelTop`）与宽屏预览截断。 |
-| `InputHistory.tsx` | **交互协调器（Coordinator）**：主组件仅保留状态订阅，将捕获期 DOM 事件委派给 3 个专属正交 Hooks（`useSelectionCopyToolbar`、`useRightClickPaste`、`usePromptHistoryHotkeys`）。直连现代 `useConversation((c) => c?.views.get('chat'))`。 |
+| `InputHistory.tsx` | **交互协调器（Coordinator）**：主组件管理生命周期与状态订阅，挂载纯 Enter 提交拦截无损即时入库、会话归档删除清理，并将捕获期 DOM 事件委派给 3 个专属正交 Hooks。直连现代 `useConversation((c) => c?.views.get('chat'))`。 |
 | `prefs.ts` | **配置领域模型与自愈中心（单一真源）**：快照 Store 发布、数据规范化、健康诊断（`analyzeConfigHealth`）与损坏自愈提取（`extractValidConfig`、`generateHealingOps`）。 |
 | `card-controller.ts` | **UI 插槽控制器**：`SettingsCardController`，连接宿主 `ConfigForm` 与组件，维护 `generation` 代际计数栅栏（抑制并发乱序与卸载迟到回执），操作即写。 |
-| `SettingsCard.tsx` | **自绘配置组件**：划分四大功能区（复制剪贴板、历史手势、历史搜索、健康维护），原生主题 Token（`--dsw-*`）自绘单选面板与官方 `Switch`，支持一键自愈。 |
+| `SettingsCard.tsx` | **自绘配置组件**：聚焦三大核心功能区（复制剪贴板、历史手势、历史搜索），原生主题 Token（`--dsw-*`）自绘单选面板与官方 `Switch`，彻底剔除过度工程的维护面板。 |
 | `editor.ts` | **DOM 编辑器适配器（真实缝隙）**：兼顾 `textarea` 与 Lexical `contenteditable`，精准判定段落 `<p>` 与软换行 `<br>` 视觉行首末行，杜绝多行误吞。 |
 | `claim-guard.ts` | **纯函数守卫**：`hasInlineSlash`，判定光标处于段前有正文的行内斜杠。 |
 | `nodes.ts` | **现代会话消息解析器（纯函数）**：直接对齐 DSH `records.d.ts` 的 `UserMessageNode` 与 `SteeringMessageNode` 契约，彻底清除历史多代 AST 容错分支。 |
@@ -78,12 +80,14 @@
    - **↑**：光标在第一行时接管，从最新一条逐条往回浏览；到底不环绕；回填时光标停在行首。
    - **↓**：处于浏览状态且光标在最后一行时接管，往更新方向步进；回填时光标停在行尾；到底时还原最初编辑草稿。
    - 浏览期间用户手动修改草稿，立刻脱离并丢弃当前浏览上下文。
-2. **双击 Esc**：
+2. **长会话本地无损持久化回溯**：
+   - 无论宿主是否折叠隐藏早期消息，回溯始终直接命中当前会话的本地历史环，100% 保持原始多行换行与代码块，0 延迟、0 截断。
+3. **双击 Esc**：
    - **非空草稿**：第一次按下提示「再按一次 Esc 清空」并透传给宿主；800 ms 内第二次按下将草稿存入历史后清空。
    - **空草稿**：双击直接唤起历史搜索面板；Esc 还原初始状态并关闭面板。
-3. **行内斜杠技能补全**：
+4. **行内斜杠技能补全**：
    - 当草稿已有前导认领命令（如 `/plan `）且光标处于后续参数中的行内斜杠时，临时将守卫降级为 `plain` 释放宿主补全管线，不影响前导令牌与 URL 边界。
-4. **建议菜单让位**：
+5. **建议菜单让位**：
    - 宿主建议菜单处于打开状态（`[role="listbox"], [data-trigger-menu]`）时，方向键完全让位宿主菜单；本插件面板展开时绕过该让位防死锁。
 
 ---
@@ -110,7 +114,7 @@ npm pack --dry-run --json                                # 4. 产物完整性与
 
 1. **版本与文档同步**：更新 `CHANGELOG.md`、`package.json` 版本号，确认双语 README 保持面向用户且无写死版本号；
 2. **本地全量门禁**：通过上述门禁清单全项校验；
-3. **版本提交与打标**：`git commit` → `git tag -a vX.Y.Z -m "release: vX.Y.Z ..."`（显式 SHA 强绑定）；
+3. **版本提交与打标**：`git commit` → 纯数组传参 `child_process.spawnSync('git', ['tag', '-f', '-a', tagName, '-m', msg, headSha])` 强绑定；
 4. **双向推送**：`git push origin main` → `git push origin vX.Y.Z`，触发 GitHub Actions 自动化流水线；
 5. **双真源校验闭环**：
    - 检查 GitHub Release：`gh release view vX.Y.Z`（验证产物生成与 release 说明）；
@@ -121,7 +125,7 @@ npm pack --dry-run --json                                # 4. 产物完整性与
 ## 不做的事（边界约束）
 
 - 不自建任何私有 HTTP 后端，所有配置数据完全依托宿主 Settings 通路；
-- 不引入外部运行时第三方库（保持零依赖，CJS Bundle gzip 控制在 ~30.7 KB）；
+- 不引入外部运行时第三方库（保持零依赖，CJS Bundle gzip 控制在 ~30.2 KB）；
 - 不侵入宿主日常 profile，不对未修改配置实施强制改写；
 - 坚决杜绝在面向用户的说明文档中出现硬编码的历史版本标签与临时数值。
 
@@ -129,38 +133,32 @@ npm pack --dry-run --json                                # 4. 产物完整性与
 
 ## 核心决策记录
 
-- **2026-10-18 长会话事件窗口截断突破与输入端本地无损记忆架构 (方案 B)**：
+- **2026-10-18 长会话输入端无损持久化架构与设置卡精简 (v2.6.0)**：
   1. **宿主事件窗口（Session Event Window）根因确证**：查阅 `@deepseek-ai/dsh-client-ui-conversation` 与 `dsh-client-ui-chat`，确证长会话上方消息未加载属于宿主 Event Window 机制，导致 `views.get('chat').order` 仅包含当前视口内的切片节点；
   2. **右侧导航轨（TurnNavigator）复用瓶颈排除**：查明右侧历史小地图由 `mergeTurnRailItems` 消费 `turnOutline` 投影生成，但受宿主硬约束 `PROMPT_PREVIEW_LIMIT = 50` 截断、空白折叠（`replace(/\s+/g, " ")`）与非文本块剥离，属于严重有损大纲，坚决不能直接作为提示词回填；
   3. **方案 B 输入端本地无损持久化架构落地**：
      - `StorageDriver` 扩展 `scope?: string` 与 `remove?(scope: string)`，按 `dsh-prompt-history.session:<id>` 实行会话级隔离存储；
      - 引擎 `PromptHistoryEngine` 引入 `sessionHistories` 内存缓存与 `currentSessionId` 状态追踪，重构 `switchSession` 实现切走暂存、切回毫秒级还原；
      - 实现 `recordPrompt(text)` 主动录入并在 `usePromptHistoryHotkeys` 中捕获纯 Enter 提交，在草稿发出的瞬间无损保全多行换行与长代码块，即发即入库；
-     - 优化 `ingestMessages` 避免宿主回声推送将已有历史重复顶出；
-     - 监听 `useSession((s) => s.removed)`，在会话归档删除时调用 `cleanupSession` 释放存储；
-  4. 单测套件扩充至 **78 项纯 Node 原生单测全绿**，TypeScript 0 报错，CJS Bundle 零膨胀（gzip ~31.4 KB）。
+     - 优化 `ingestMessages` 避免宿主回声推送将已有历史重复顶出；监听 `useSession((s) => s.removed)`，在会话归档删除时调用 `cleanupSession` 释放存储；
+  4. **设置卡 UI 深度精简**：从 `SettingsCard.tsx` 中彻底删除“配置健康与自愈维护”和“高级维护与配置提取”UI 区域，清理双语字典（`locales.ts`）孤儿词条，Bundle 体积缩减至 101.67 kB（gzip ~30.22 kB）；
+  5. **实机独立测试闭环与双真源发布**：
+     - 搭建独立隔离实例 `dsh-verify-live`（端口 59237，direct source junction 联接），编写并在无头 Chrome CDP 下全绿通过 6 项端到端实机路测；
+     - 单测套件扩充至 **78 项纯 Node 原生单测全绿**，GitHub Release `v2.6.0` 成功挂牌，npm 官方源直连核验权威上线。
 - **2026-10-17 深度适配 DSH 0.2.1-rc.2 与废弃包彻底拔除 (v2.5.1)**：
   1. 彻底对齐 0.2.1-rc.2 发版契约：官方全面下架运行时 invariant 插件及各包 `./invariant` 导出，插件彻底删除 `src/invariant.ts`，从导出与依赖中清除 `@deepseek-ai/dsh-invariants`，根除孤儿产物；
   2. 官方推荐 `engines.dsh` 字段规范：在 `package.json` 的 `engines` 中显式添加 `"dsh": ">=0.2.0-rc.2"`，并在 `peerDependencies` 中将 `@deepseek-ai/dsh-*` 全面支持 0.2.0-rc.2 与 0.2.1-rc.2 全系；
-  3. 双真源闭环验证：GitHub Release `v2.5.1` 成功挂牌，npm 官方源直连核验 `dist-tags.latest` 权威确认为 `2.5.1`；
-  4. 真实浏览器 CDP 全功能实机路测全绿验证（`dsh-verify-live` 独立实例，高位端口 3899，绝不碰 3080 实例）：
-     - 设置卡实操：四大分区正常渲染，单选块/开关点击即写（mutate），物理磁盘 `cordis.patch.yml` 验证原子落盘；
-     - 键盘手势：非空草稿双击 Esc 清空入库（`""`），空草稿双击 Esc 唤起 `.dsh-ph-history` 搜索面板（含历史条目与底部提示），Esc 顺畅关闭；方向键 ↑ 召回历史、↓ 还原草稿；多行文本光标在第 2 行时不拦截正常上移、到达第 1 行才接管历史；
-     - 划词与右键：划词选区浮动工具栏（`.dsh-ph-toolbar`）正常弹出，点击「引用」回填 Markdown 引用块（`> ...`）；输入框鼠标右键直接粘贴（`defaultPrevented: true`）；
-     - 认领态行内斜杠：在 `/plan ` 认领态下输入 `/`，补全菜单正常弹出（`menuOpened: true`，成功列出 171 项！），彻底突破官方静默屏蔽硬限制。
+  3. 双真源闭环验证与 CDP 实机路测全绿验证。
 - **2026-10-17 宿主契约纯净演进与零旧版包袱 (v2.5.0)**：
-  1. 彻底斩断历史包袱：全面废弃 ≤0.1.1、0.1.2-rc 及 2.0.x 旧版兼容分支，删除 `legacy.nodes`、`anchorSeq`、`data.seq`、`data.content` 等容错代码；
-  2. 会话快照官方直连：消灭 `InputHistory.tsx` 中 `useChat` 幽灵探针与 `rawNodesOf` 四阶探测，直接通过 `useConversation((c) => c?.views.get('chat'))` 消费官方 `ChatSnapshot`（`order` 数组 + `nodes.get` 强类型存取）；
-  3. 客户端显式服务依赖双导出：`index.ts` 补齐 `export default { apply, inject }` 与具名双导出，彻底杜绝隔离新实例冷启动未就绪报错（`web boot: 1 entry did not activate`）；
-  4. 专用测试隔离实例真机真值闭环：搭建独立 profile `dsh-ph-isolated-test`（高位端口 3899，mklink /J 直通联接，绝对不触碰主用户 3080 实例），双真源验证 `__DSH_BOOT__` 清单注入与 `client.js` 200 分发及现代 `views.get` 源码特征；新增 `test/nodes.test.ts`，单测套件扩充至 **74 项全绿**。
-- **2026-10-10 宿主元信息硬约束与图标体积压制 (v2.4.1)**：
-  1. 契约定位：发现宿主 `plugin-manager` 加载插件 `package.json` 元信息时施加的 `icon exceeds 256 KiB` 强校验硬边界；
-  2. 高保真重采样压制：采用 Lanczos 256×256 算法将 `assets/icon.png` 从 987 KiB 压缩至 77.63 KiB（缩减 92%），杜绝宿主加载崩溃，确立 ≤100 KiB 工程安全水位。
-- **2026-10-10 架构深度演进与质量重构 (v2.4.0)**：
-  1. 落地 100% 可逆生命周期：样式节点注入与插槽监听自动注销，`inputTriggers` 猴补引入 `ORIG_TRACK` Symbol 与 `WeakRef` 追踪集合，卸载时全面深度还原各活跃会话原方法；
-  2. 抽象 `HistoryOverlayController` 深模块（`history-overlay.ts`），封装 DOM 骨架与视口定位，消灭 5 个模块级全局指针，纯切片算法离线可测；
-  3. 新增 `test/history-overlay.test.ts` 12 项单测，纯 Node 单测套件扩充至 **68 项全绿**；
-  4. 重构 `InputHistory.tsx` 为 Coordinator 模式，正交解耦为 3 个专注自定义 Hooks，消除发散式变化坏味道；
-  5. 落地配置自愈容灾系统（`analyzeConfigHealth`、`extractValidConfig`、`generateHealingOps`）与前导空格隐私过滤（`ignoreLeadingSpace`）。
-- **2026-10-06 认领态行内斜杠智能补全 (v2.2.2)**：定位 `claimed` 压制，注入 `inputTriggers` 并在行内斜杠处放宽守卫，判定收敛为 `claim-guard.ts` 纯函数。
-- **2026-10-06 Claude Code 交互体验复刻与操作即写设置卡**：建立上下键顺序回溯、800ms 双击 Esc 判定、宽屏预览与自绘设置卡写即生效机制。
+  1. 全面废弃 ≤0.1.1、0.1.2-rc 及 2.0.x 旧版兼容分支，删除 `legacy.nodes` 等多代容错代码；
+  2. 会话快照官方直连：消灭 `useChat` 幽灵探针，直接通过 `useConversation((c) => c?.views.get('chat'))` 消费官方 `ChatSnapshot`；
+  3. 客户端显式服务依赖双导出：`index.ts` 补齐 `export default { apply, inject }` 与具名双导出，杜绝隔离新实例冷启动未就绪报错；
+  4. 专用测试隔离实例真机真值闭环，单测套件扩充至 74 项全绿。
+- **2026-10-10 架构深度演进、元信息硬约束与质量重构 (v2.4.0~v2.4.1)**：
+  1. 宿主元信息硬边界：Lanczos 256×256 算法将图标压缩至 77.63 KiB（缩减 92%），杜绝 256 KiB 上限崩溃；
+  2. 100% 可逆生命周期：样式与插槽监听自动注销，`ORIG_TRACK` Symbol 与 `WeakRef` 级联还原活跃会话原方法；
+  3. 抽象 `HistoryOverlayController` 深模块，封装 DOM 骨架与视口定位；重构 `InputHistory.tsx` 为 Coordinator 模式；
+  4. 落地配置自愈容灾系统与前导空格隐私过滤（`ignoreLeadingSpace`）。
+- **2026-10-06 Claude Code 体验复刻与行内斜杠补全 (v2.2.2)**：
+  1. 上下键顺序回溯、800ms 双击 Esc 判定、宽屏预览与操作即写设置卡机制；
+  2. 定位 `claimed` 压制，注入 `inputTriggers` 并在行内斜杠处放宽守卫。
