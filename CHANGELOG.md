@@ -4,6 +4,23 @@
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-10-18
+
+### 长会话输入端无损持久化架构与设置卡精简 (Lossless Input-End Persistence & Settings Card Refinement)
+
+- **长会话输入端本地无损记忆架构 (方案 B / Lossless Input-End Persistence)**：
+  - **彻底攻克长消息隐藏截断痛点**：深度剖析宿主事件窗口（Session Event Window / Loaded Window）机制，彻底解决长会话中上方消息被宿主未加载折叠导致上下键回溯触顶的缺陷；
+  - **即发即入库（Zero-latency Ingestion）**：在用户按下 Enter 提交草稿的瞬间无损入库，保留原始多行换行（`\n`）、代码缩进与全部标点，彻底免疫宿主消息窗口裁剪；
+  - **会话级隔离持久化存储**：`StorageDriver` 扩展 `scope` 命名空间，按 `dsh-prompt-history.session:<id>` 实现各会话历史完全隔离与持久化备份；
+  - **切会话/刷新毫秒级还原**：`PromptHistoryEngine` 增加 `sessionHistories` 内存缓存与 `switchSession` 记忆切换，切走暂存、切回秒级还原；
+  - **会话清理（Storage Hygiene）**：监听 `useSession((s) => s.removed)`，在会话归档删除时调用 `cleanupSession` 释放存储空间。
+- **配置卡 UI 深度精简 (Settings Card Refinement)**：
+  - 从设置页中彻底移除“配置健康与自愈维护”和“高级维护与配置提取”UI 区域，回归三大核心功能区（复制与剪贴板、历史回溯与快捷手势、历史搜索面板），界面更显克制纯粹；
+  - 彻底清理双语字典（`locales.ts`）与无用状态，客户端产物 Bundle 体积进一步精简（`lib/client.js` gzip 降至 ~30.2 kB）。
+- **自动化单测与真机 CDP 验收套件沉淀 (Test Expansion & CDP Acceptance)**：
+  - 纯 Node 原生单测套件扩充至 **78 项 100% 全绿**（耗时仅 ~600ms）；
+  - 沉淀 `scripts/test-live-e2e.mjs`，通过真实 Google Chrome CDP 在全新 DSH 隔离测试实例上完成 6 大测试项全真机全绿路测。
+
 ## [2.5.1] - 2026-10-17
 
 ### 深度适配 DSH 0.2.1-rc.2 与废弃包彻底拔除 (Purge Invariants & engines.dsh Alignment)
