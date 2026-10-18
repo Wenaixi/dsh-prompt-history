@@ -116,9 +116,6 @@ export function SettingsCardSlot(props: SettingsCardProps): JSX.Element | null {
   if (props.view !== 'page') return null
 
   const snapshot = props.usePrefsCard((state) => state)
-  const [showAdvanced, setShowAdvanced] = useState(false)
-  const [importText, setImportText] = useState('')
-  const [copyFeedback, setCopyFeedback] = useState(false)
   const [healNotice, setHealNotice] = useState<string | null>(null)
 
   if (!snapshot.available) {
@@ -127,7 +124,6 @@ export function SettingsCardSlot(props: SettingsCardProps): JSX.Element | null {
 
   const locked = !snapshot.writable
   const value = snapshot.values
-  const health = snapshot.health
 
   const copyOptions = COPY_MODES.map((mode) => ({
     value: mode.value,
@@ -139,26 +135,6 @@ export function SettingsCardSlot(props: SettingsCardProps): JSX.Element | null {
     setHealNotice(null)
     const success = await props.healAndRegenerate()
     if (success) {
-      setHealNotice(t('settings.health.healed'))
-      setTimeout(() => setHealNotice(null), 4000)
-    }
-  }
-
-  const handleCopyJson = () => {
-    try {
-      void navigator.clipboard.writeText(props.exportConfigJson())
-      setCopyFeedback(true)
-      setTimeout(() => setCopyFeedback(false), 2500)
-    } catch {
-      // 容灾忽略复制异常
-    }
-  }
-
-  const handleImportAndHeal = async () => {
-    if (!importText.trim()) return
-    const success = await props.importAndHeal(importText)
-    if (success) {
-      setImportText('')
       setHealNotice(t('settings.health.healed'))
       setTimeout(() => setHealNotice(null), 4000)
     }
@@ -265,88 +241,6 @@ export function SettingsCardSlot(props: SettingsCardProps): JSX.Element | null {
           disabled={locked}
           onChange={(next) => props.edit('fuzzyMatch', next)}
         />
-      </Group>
-
-      {/* 分组四：配置健康与自愈维护 */}
-      <Group title={t('settings.group.maintenance')}>
-        <div className="dsh-ph-health-row">
-          <div className={`dsh-ph-health-box ${health.status === 'healthy' ? 'isHealthy' : 'isWarning'}`}>
-            <span className={`dsh-ph-health-dot ${health.status === 'healthy' ? 'isHealthy' : 'isWarning'}`} />
-            <div className="dsh-ph-health-info">
-              <span className="dsh-ph-health-title">
-                {health.status === 'healthy'
-                  ? t('settings.health.healthy')
-                  : health.status === 'corrupted'
-                    ? t('settings.health.corrupted')
-                    : t('settings.health.degraded')}
-              </span>
-              <span className="dsh-ph-health-desc">
-                {health.status === 'healthy' ? t('settings.health.healthy.desc') : health.summary}
-              </span>
-            </div>
-            {health.status !== 'healthy' ? (
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleHeal}
-                disabled={locked || snapshot.healing}
-                className="dsh-ph-heal-btn"
-              >
-                {snapshot.healing ? t('settings.health.healing') : t('settings.health.healBtn')}
-              </Button>
-            ) : null}
-          </div>
-        </div>
-
-        {/* 高级工具折叠区 */}
-        <div className="dsh-ph-adv-container">
-          <button
-            type="button"
-            className="dsh-ph-adv-toggle"
-            onClick={() => setShowAdvanced(!showAdvanced)}
-          >
-            <span>{showAdvanced ? '▼' : '▶'}</span>
-            <span>{t('settings.tools.advancedTitle')}</span>
-          </button>
-
-          {showAdvanced ? (
-            <div className="dsh-ph-adv-pane">
-              <div className="dsh-ph-adv-actions">
-                <Button variant="outline" size="sm" onClick={handleCopyJson}>
-                  {copyFeedback ? t('settings.tools.exported') : t('settings.tools.export')}
-                </Button>
-                {health.status === 'healthy' ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleHeal}
-                    disabled={locked || snapshot.healing}
-                  >
-                    {snapshot.healing ? t('settings.health.healing') : t('settings.health.healBtn')}
-                  </Button>
-                ) : null}
-              </div>
-
-              <div className="dsh-ph-import-box">
-                <textarea
-                  className="dsh-ph-textarea"
-                  value={importText}
-                  onChange={(e) => setImportText(e.target.value)}
-                  placeholder={t('settings.tools.importPlaceholder')}
-                  disabled={locked || snapshot.healing}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleImportAndHeal}
-                  disabled={locked || snapshot.healing || !importText.trim()}
-                >
-                  {t('settings.tools.importHeal')}
-                </Button>
-              </div>
-            </div>
-          ) : null}
-        </div>
       </Group>
 
       {/* 底部重置操作 */}

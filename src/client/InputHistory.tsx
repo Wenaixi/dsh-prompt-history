@@ -245,6 +245,13 @@ function usePromptHistoryHotkeys(params: {
       const isFirst = host !== null ? isCaretOnFirstLine(host) : true
       const isLast = host !== null ? isCaretOnLastLine(host) : true
 
+      // 提交感知：用户按下 Enter 发送非空草稿时，无损即时入库（不拦截事件冒泡，交由宿主执行实际发送）
+      if (e.key === 'Enter' && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey) {
+        if (!panelOpen && card.querySelector(OPEN_MENU) === null && live.draft.trim() !== '') {
+          engine.recordPrompt(live.draft)
+        }
+      }
+
       const { handled, action } = engine.onKeyDown({
         key: e.key,
         shiftKey: e.shiftKey,
@@ -369,6 +376,13 @@ export function InputHistory(props: InputHistoryProps): null {
     engine.switchSession(sessionId)
     overlay.hide()
   }, [engine, sessionId, overlay])
+
+  // 会话被归档删除时，清理对应会话的持久化历史
+  useEffect(() => {
+    if (removed && sessionId) {
+      engine.cleanupSession(sessionId)
+    }
+  }, [engine, removed, sessionId])
 
   // 消息流进入：吸收并折叠去重
   useEffect(() => {

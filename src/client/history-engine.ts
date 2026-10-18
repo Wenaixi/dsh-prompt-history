@@ -34,8 +34,9 @@ export interface PromptHistoryConfig {
 }
 
 export interface StorageDriver {
-  load(): readonly HistoryRecord[]
-  save(records: readonly HistoryRecord[]): void
+  load(scope?: string): readonly HistoryRecord[]
+  save(records: readonly HistoryRecord[], scope?: string): void
+  remove?(scope: string): void
 }
 
 export interface EngineClock {
@@ -74,11 +75,17 @@ export interface KeyInputContext {
 
 export type EngineMode = 'idle' | 'browsing' | 'searching'
 
+const STORAGE_PREFIX = 'dsh-prompt-history'
+
+function storageKey(scope?: string): string {
+  return scope !== undefined && scope !== '' ? `${STORAGE_PREFIX}.session:${scope}` : `${STORAGE_PREFIX}.global`
+}
+
 const DEFAULT_STORAGE: StorageDriver = {
-  load: () => {
+  load: (scope?: string) => {
     try {
       if (typeof localStorage === 'undefined') return []
-      const raw = localStorage.getItem('dsh-prompt-history.global')
+      const raw = localStorage.getItem(storageKey(scope))
       if (raw === null) return []
       const parsed = JSON.parse(raw)
       if (!Array.isArray(parsed)) return []
@@ -96,12 +103,20 @@ const DEFAULT_STORAGE: StorageDriver = {
       return []
     }
   },
-  save: (records) => {
+  save: (records, scope?: string) => {
     try {
       if (typeof localStorage === 'undefined') return
-      localStorage.setItem('dsh-prompt-history.global', JSON.stringify(records))
+      localStorage.setItem(storageKey(scope), JSON.stringify(records))
     } catch {
       /* storage quota exceeded or restricted */
+    }
+  },
+  remove: (scope: string) => {
+    try {
+      if (typeof localStorage === 'undefined') return
+      localStorage.removeItem(storageKey(scope))
+    } catch {
+      /* ignore */
     }
   },
 }
@@ -118,6 +133,8 @@ export class PromptHistoryEngine {
 
   private history: HistoryRecord[] = []
   private seen: Set<number> = new Set()
+  private currentSessionId: string | null = null
+  private sessionHistories: Map<string, HistoryRecord[]> = new Map()
   private browse: { step: number; saved: string; lastSet: string | null } = {
     step: 0,
     saved: '',
@@ -159,25 +176,92 @@ export class PromptHistoryEngine {
 
     if (this.history.length > nextCap) {
       this.history.splice(0, this.history.length - nextCap)
-      if (this.config.globalHistory) this.storage.save(this.history)
+      this.persistCurrent()
     }
   }
 
-  /** 切换会话上下文：重置所有瞬态状态机 */
-  public switchSession(_sessionId: string): void {
-    if (!this.config.historyEnabled || !this.config.globalHistory) {
-      this.history = []
-    }
-    this.seen = new Set()
+  /** 切换会话上下文：重置所有瞬态状态机，按单会话/全局模式恢复历史环 */
+  public switchSession(sessionId: string): void {
     this.browse = { step: 0, saved: '', lastSet: null }
     this.picker = null
     this.lastEscape = 0
+    this.seen = new Set()
+
+    if (!this.config.historyEnabled) {
+      this.history = []
+      this.currentSessionId = sessionId
+      return
+    }
+
+    if (this.config.globalHistory) {
+      this.currentSessionId = sessionId
+      return
+    }
+
+    // 单会话模式：暂存当前会话历史
+    if (this.currentSessionId !== null) {
+      this.sessionHistories.set(this.currentSessionId, [...this.history])
+    }
+
+    this.currentSessionId = sessionId
+    let sessionRecords = this.sessionHistories.get(sessionId)
+    if (sessionRecords === undefined) {
+      const loaded = this.storage.load(sessionId)
+      const cap = this.config.maxHistoryItems
+      sessionRecords = [...loaded.slice(-cap)]
+      this.sessionHistories.set(sessionId, sessionRecords)
+    }
+    this.history = sessionRecords
   }
 
-  /** 吸收宿主消息流（幂等追加、去重过滤、容量裁剪） */
+  /** 主动录入用户提交的完整长文本（即发即入库、去重、容量裁剪、本地持久化） */
+  public recordPrompt(text: string, time?: number): void {
+    if (!this.config.historyEnabled) return
+    const trimmed = text.trim()
+    if (trimmed === '') return
+    if (this.config.ignoreLeadingSpace && text.startsWith(' ')) return
+
+    const record: HistoryRecord = { text, time: time ?? this.clock.wallClockNow() }
+    const globalOn = this.config.globalHistory
+    const shouldPush = globalOn
+      ? !this.history.some((e) => e.text === text)
+      : this.history[this.history.length - 1]?.text !== text
+
+    if (shouldPush) {
+      this.history.push(record)
+      const cap = this.config.maxHistoryItems
+      if (this.history.length > cap) {
+        this.history.splice(0, this.history.length - cap)
+      }
+      this.persistCurrent()
+    }
+  }
+
+  /** 移除会话：清理内存与持久化存储中的对应会话条目 */
+  public cleanupSession(sessionId: string): void {
+    this.sessionHistories.delete(sessionId)
+    this.storage.remove?.(sessionId)
+    if (this.currentSessionId === sessionId) {
+      this.history = []
+      this.seen = new Set()
+      this.browse = { step: 0, saved: '', lastSet: null }
+      this.picker = null
+    }
+  }
+
+  /** 统一将当前活跃历史落盘到对应的全局或会话 Storage */
+  private persistCurrent(): void {
+    if (this.config.globalHistory) {
+      this.storage.save(this.history)
+    } else if (this.currentSessionId !== null) {
+      this.sessionHistories.set(this.currentSessionId, [...this.history])
+      this.storage.save(this.history, this.currentSessionId)
+    }
+  }
+
+  /** 吸收宿主消息流（幂等补全未知历史、去重过滤、容量裁剪） */
   public ingestMessages(messages: ReadonlyArray<{ seq: number; text: string | null; time: number }>): void {
     const cap = this.config.maxHistoryItems
-    const globalOn = this.config.globalHistory
     const ignoreSpace = this.config.ignoreLeadingSpace ?? false
     let mutated = false
 
@@ -188,15 +272,11 @@ export class PromptHistoryEngine {
       // 敏感指令与前导空格过滤
       if (ignoreSpace && msg.text.startsWith(' ')) continue
 
-      // 全环去重 vs 相邻去重
-      const shouldPush = globalOn
-        ? !this.history.some((e) => e.text === msg.text)
-        : this.history[this.history.length - 1]?.text !== msg.text
+      // 如果当前历史环中已存在完全相同的文本（已被主动录入或已记录），不重复追加
+      if (this.history.some((e) => e.text === msg.text)) continue
 
-      if (shouldPush) {
-        this.history.push({ text: msg.text, time: msg.time })
-        mutated = true
-      }
+      this.history.push({ text: msg.text, time: msg.time })
+      mutated = true
     }
 
     if (this.history.length > cap) {
@@ -204,8 +284,8 @@ export class PromptHistoryEngine {
       mutated = true
     }
 
-    if (globalOn && mutated) {
-      this.storage.save(this.history)
+    if (mutated) {
+      this.persistCurrent()
     }
   }
 

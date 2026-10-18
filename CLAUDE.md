@@ -93,7 +93,7 @@
 ### 门禁执行序列
 ```sh
 node node_modules/typescript/bin/tsc --noEmit             # 1. 静态类型检查 (0 错误)
-node --experimental-strip-types --test test/*.test.ts     # 2. 74 项纯 Node 原生单测全绿 (~600ms)
+node --experimental-strip-types --test test/*.test.ts     # 2. 78 项纯 Node 原生单测全绿 (~600ms)
 pnpm build                                                # 3. 两步构建: tsc 声明到 lib/types + tsdown 打包
 npm pack --dry-run --json                                # 4. 产物完整性与文件白名单校验 (41 文件)
 ```
@@ -129,6 +129,16 @@ npm pack --dry-run --json                                # 4. 产物完整性与
 
 ## 核心决策记录
 
+- **2026-10-18 长会话事件窗口截断突破与输入端本地无损记忆架构 (方案 B)**：
+  1. **宿主事件窗口（Session Event Window）根因确证**：查阅 `@deepseek-ai/dsh-client-ui-conversation` 与 `dsh-client-ui-chat`，确证长会话上方消息未加载属于宿主 Event Window 机制，导致 `views.get('chat').order` 仅包含当前视口内的切片节点；
+  2. **右侧导航轨（TurnNavigator）复用瓶颈排除**：查明右侧历史小地图由 `mergeTurnRailItems` 消费 `turnOutline` 投影生成，但受宿主硬约束 `PROMPT_PREVIEW_LIMIT = 50` 截断、空白折叠（`replace(/\s+/g, " ")`）与非文本块剥离，属于严重有损大纲，坚决不能直接作为提示词回填；
+  3. **方案 B 输入端本地无损持久化架构落地**：
+     - `StorageDriver` 扩展 `scope?: string` 与 `remove?(scope: string)`，按 `dsh-prompt-history.session:<id>` 实行会话级隔离存储；
+     - 引擎 `PromptHistoryEngine` 引入 `sessionHistories` 内存缓存与 `currentSessionId` 状态追踪，重构 `switchSession` 实现切走暂存、切回毫秒级还原；
+     - 实现 `recordPrompt(text)` 主动录入并在 `usePromptHistoryHotkeys` 中捕获纯 Enter 提交，在草稿发出的瞬间无损保全多行换行与长代码块，即发即入库；
+     - 优化 `ingestMessages` 避免宿主回声推送将已有历史重复顶出；
+     - 监听 `useSession((s) => s.removed)`，在会话归档删除时调用 `cleanupSession` 释放存储；
+  4. 单测套件扩充至 **78 项纯 Node 原生单测全绿**，TypeScript 0 报错，CJS Bundle 零膨胀（gzip ~31.4 KB）。
 - **2026-10-17 深度适配 DSH 0.2.1-rc.2 与废弃包彻底拔除 (v2.5.1)**：
   1. 彻底对齐 0.2.1-rc.2 发版契约：官方全面下架运行时 invariant 插件及各包 `./invariant` 导出，插件彻底删除 `src/invariant.ts`，从导出与依赖中清除 `@deepseek-ai/dsh-invariants`，根除孤儿产物；
   2. 官方推荐 `engines.dsh` 字段规范：在 `package.json` 的 `engines` 中显式添加 `"dsh": ">=0.2.0-rc.2"`，并在 `peerDependencies` 中将 `@deepseek-ai/dsh-*` 全面支持 0.2.0-rc.2 与 0.2.1-rc.2 全系；

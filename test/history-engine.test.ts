@@ -10,11 +10,23 @@ import {
 
 class MockStorage implements StorageDriver {
   records: HistoryRecord[] = []
-  load(): readonly HistoryRecord[] {
-    return this.records
+  private stores: Map<string, HistoryRecord[]> = new Map()
+
+  load(scope?: string): readonly HistoryRecord[] {
+    if (!scope) return this.records
+    return this.stores.get(scope) ?? []
   }
-  save(records: readonly HistoryRecord[]): void {
-    this.records = [...records]
+
+  save(records: readonly HistoryRecord[], scope?: string): void {
+    if (!scope) {
+      this.records = [...records]
+    } else {
+      this.stores.set(scope, [...records])
+    }
+  }
+
+  remove(scope: string): void {
+    this.stores.delete(scope)
   }
 }
 
@@ -364,9 +376,116 @@ test('10. switchSession 会话切换重置所有瞬态状态', () => {
   })
   assert.equal(engine.getMode(), 'browsing')
 
-  // 切换会话
+  // 切换会话到新会话
   engine.switchSession('sess-new')
   assert.equal(engine.getMode(), 'idle')
-  // 非全局历史下历史被清空
+  // 新会话历史为空
   assert.equal(engine.getHistory().length, 0)
+})
+
+test('11. 会话记忆隔离：多会话间历史互不干扰，切回历史会话完整恢复历史环', () => {
+  const storage = new MockStorage()
+  const clock = new MockClock()
+  const engine = new PromptHistoryEngine(baseConfig, storage, clock)
+
+  // 会话 A 初始化并输入两条提示词
+  engine.switchSession('sess-a')
+  engine.recordPrompt('prompt in session A - 1')
+  engine.recordPrompt('prompt in session A - 2')
+  assert.equal(engine.getHistory().length, 2)
+
+  // 切换到会话 B
+  engine.switchSession('sess-b')
+  assert.equal(engine.getHistory().length, 0, '会话 B 初始历史应为空')
+  engine.recordPrompt('prompt in session B - 1')
+  assert.equal(engine.getHistory().length, 1)
+
+  // 再次切回会话 A：历史记录应完整恢复
+  engine.switchSession('sess-a')
+  assert.equal(engine.getHistory().length, 2, '切回会话 A 应恢复历史')
+  assert.equal(engine.getHistory()[0].text, 'prompt in session A - 1')
+  assert.equal(engine.getHistory()[1].text, 'prompt in session A - 2')
+
+  // 模拟页面刷新（全新 engine 挂载同一 storage）
+  const restoredEngine = new PromptHistoryEngine(baseConfig, storage, clock)
+  restoredEngine.switchSession('sess-a')
+  assert.equal(restoredEngine.getHistory().length, 2, '刷新重载后切入会话 A 应从 Storage 还原历史')
+  assert.equal(restoredEngine.getHistory()[1].text, 'prompt in session A - 2')
+})
+
+test('12. 主动提交录入 recordPrompt：多行换行与长代码块 100% 原始保真', () => {
+  const engine = new PromptHistoryEngine(baseConfig, new MockStorage(), new MockClock())
+  engine.switchSession('sess-code')
+
+  const multilineCode = `SELECT * FROM users
+WHERE created_at >= '2026-01-01'
+  AND status = 'active'
+ORDER BY id DESC;`
+
+  engine.recordPrompt(multilineCode)
+  assert.equal(engine.getHistory().length, 1)
+  assert.equal(engine.getHistory()[0].text, multilineCode, '多行 SQL 提示词绝无截断且换行符完整保全')
+
+  // 测试前导空格阅后即焚
+  engine.recordPrompt('   temporary query')
+  assert.equal(engine.getHistory().length, 1, 'ignoreLeadingSpace 开启时前导空格草稿不入库')
+
+  // 相邻完全相同提示词去重
+  engine.recordPrompt(multilineCode)
+  assert.equal(engine.getHistory().length, 1, '相邻重复提示词应被折叠去重')
+})
+
+test('13. 视口窗口截断防御：当消息流仅传递末尾切片时，本地完整历史不受破坏，上下键能完整回溯', () => {
+  const engine = new PromptHistoryEngine(baseConfig, new MockStorage(), new MockClock())
+  engine.switchSession('sess-long')
+
+  // 用户此前在当前会话发了 5 条消息
+  engine.recordPrompt('prompt 1: 早期消息')
+  engine.recordPrompt('prompt 2: 架构方案')
+  engine.recordPrompt('prompt 3: 代码审查')
+  engine.recordPrompt('prompt 4: 性能排查')
+  engine.recordPrompt('prompt 5: 最终回归')
+  assert.equal(engine.getHistory().length, 5)
+
+  // 此时宿主因为长列表窗口化裁剪，仅下发了最后 2 条消息
+  engine.ingestMessages([
+    { seq: 400, text: 'prompt 4: 性能排查', time: 4000 },
+    { seq: 500, text: 'prompt 5: 最终回归', time: 5000 },
+  ])
+
+  // 核心断言：本地历史环没有被宿主裁剪后的短列表覆盖抹杀，依然拥有全部 5 条历史！
+  assert.equal(engine.getHistory().length, 5)
+
+  // 此时用户按 ↑ 键回溯
+  const up1 = engine.onKeyDown({
+    key: 'ArrowUp',
+    currentDraft: '',
+    isCaretOnFirstLine: true,
+    isCaretOnLastLine: true,
+  })
+  assert.equal(up1.handled, true)
+  assert.deepEqual(up1.action, { type: 'set-draft', text: 'prompt 5: 最终回归', caret: 'start' })
+
+  // 连续按 ↑ 键回溯到被宿主视口隐藏的早先消息 prompt 1
+  engine.onKeyDown({ key: 'ArrowUp', currentDraft: 'prompt 5: 最终回归', isCaretOnFirstLine: true, isCaretOnLastLine: true })
+  engine.onKeyDown({ key: 'ArrowUp', currentDraft: 'prompt 4: 性能排查', isCaretOnFirstLine: true, isCaretOnLastLine: true })
+  engine.onKeyDown({ key: 'ArrowUp', currentDraft: 'prompt 3: 代码审查', isCaretOnFirstLine: true, isCaretOnLastLine: true })
+  const up5 = engine.onKeyDown({ key: 'ArrowUp', currentDraft: 'prompt 2: 架构方案', isCaretOnFirstLine: true, isCaretOnLastLine: true })
+
+  assert.equal(up5.handled, true)
+  assert.deepEqual(up5.action, { type: 'set-draft', text: 'prompt 1: 早期消息', caret: 'start' }, '成功顺畅回溯到已在视口上方被隐藏的早期消息')
+})
+
+test('14. 会话移除清理：cleanupSession 释放已持久化的单会话存储', () => {
+  const storage = new MockStorage()
+  const engine = new PromptHistoryEngine(baseConfig, storage, new MockClock())
+
+  engine.switchSession('sess-delete')
+  engine.recordPrompt('to be deleted')
+  assert.equal(storage.load('sess-delete').length, 1)
+
+  // 移除会话
+  engine.cleanupSession('sess-delete')
+  assert.equal(storage.load('sess-delete').length, 0, '持久化存储中的对应 session 键已清理')
+  assert.equal(engine.getHistory().length, 0, '当前活跃历史也同步清空')
 })
