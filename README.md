@@ -79,6 +79,11 @@ Client-side architectural boundaries:
 - Pressing Escape a second time within 800 ms saves the current draft into history and clears the composer (the cleared content remains recallable via ↑);
 - Double-Escape can be toggled in settings; when disabled, Escape is handed entirely back to the host.
 
+### 4. Universal Input Formats & Lossless Long-Session Recall
+- **Universal input format coverage**: seamlessly supports standard prompts as well as slash commands (faithfully reconstructing full `/cmd args` prototypes), interactive question replies, and dynamic command inputs.
+- **Dual-source fallback for long sessions**: when host event windows truncate views, the engine automatically falls back to full underlying nodes, ensuring zero dropped prompts and zero truncation across long conversations.
+- **Instant reactive sync & seq deduplication**: instant reconciliation upon session switching; optimistic local drafts seamlessly merge with authoritative host echo events with zero cross-session pollution.
+
 ### 4. Text Selection Copy & Quotation
 Any non-empty text selection across the page (composer, chat messages, code blocks) is handled per the selected mode:
 - **Toolbar mode (default)**: floating "Copy" and "Quote" buttons appear above the selection. Clicking Copy writes to the system clipboard without flooding clipboard history; clicking Quote inserts the selected text into the composer as a markdown `>` blockquote.
