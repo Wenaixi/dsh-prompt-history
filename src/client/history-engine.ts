@@ -189,17 +189,29 @@ export class PromptHistoryEngine {
   private sortAndClamp(): void {
     if (this.history.length <= 1) return
 
-    // 1. 同时间戳下的重复事件合并（防完全同一条事件重复推入）
+    // 1. 优先按权威 seq 强去重；当无 seq 时按同一时刻（同文本+同时间戳）合并
     const deduplicated: HistoryRecord[] = []
     for (const record of this.history) {
-      const isExactSameMoment = deduplicated.some(
-        (d) =>
-          d.text === record.text &&
-          d.time === record.time &&
-          (d.seq === record.seq || d.seq === undefined || record.seq === undefined),
-      )
-      if (!isExactSameMoment) {
+      const dupIdx = deduplicated.findIndex((d) => {
+        if (d.seq !== undefined && record.seq !== undefined && d.seq > 0 && record.seq > 0) {
+          return d.seq === record.seq
+        }
+        return d.text === record.text && d.time === record.time
+      })
+
+      if (dupIdx === -1) {
         deduplicated.push(record)
+      } else {
+        const existing = deduplicated[dupIdx]
+        if (existing !== undefined) {
+          const mergedSeq = existing.seq ?? record.seq
+          const mergedTime = record.time > 0 ? record.time : existing.time
+          deduplicated[dupIdx] = {
+            text: existing.text,
+            time: mergedTime,
+            ...(mergedSeq !== undefined ? { seq: mergedSeq } : {}),
+          }
+        }
       }
     }
 
@@ -306,18 +318,54 @@ export class PromptHistoryEngine {
       if (msg.text === null || msg.text.trim() === '') continue
       if (ignoreSpace && msg.text.startsWith(' ')) continue
 
-      const msgTime = msg.time > 0 ? msg.time : this.clock.wallClockNow()
-      // 判断完全相同的同一事件（同文本且同时间戳）
-      const existing = this.history.find((h) => h.text === msg.text && h.time === msgTime)
+      // 1. 优先按权威序号 seq 匹配（单会话中 seq > 0 是绝对唯一真源）
+      let existingIndex = msg.seq > 0 ? this.history.findIndex((h) => h.seq === msg.seq) : -1
 
-      if (existing === undefined) {
+      // 2. 若未按 seq 命中，尝试与相同文本的已有记录对齐（处理本地乐观入库条目或同时间事件）
+      if (existingIndex === -1) {
+        existingIndex = this.history.findIndex((h) => {
+          if (h.text !== msg.text) return false
+          // 如果已有条目尚未关联 seq，且两者时间非常接近（5秒内）或一方为 0
+          if (h.seq === undefined) {
+            if (msg.time === 0 || h.time === 0) return true
+            return Math.abs(h.time - msg.time) <= 5000
+          }
+          // 如果双方都有不同 seq，说明是用户在不同时刻发出的相同文本，不合并
+          return false
+        })
+      }
+
+      if (existingIndex === -1) {
+        // 全新条目：确定持久化时间戳（若宿主给出 > 0 则用宿主时间，否则用当前时钟）
+        const msgTime = msg.time > 0 ? msg.time : this.clock.wallClockNow()
         this.history.push(msg.seq > 0 ? { text: msg.text, time: msgTime, seq: msg.seq } : { text: msg.text, time: msgTime })
         mutated = true
-      } else if (existing.seq === undefined && msg.seq > 0) {
-        // 补充序号上下文
-        const idx = this.history.indexOf(existing)
-        this.history[idx] = { text: existing.text, time: existing.time, seq: msg.seq }
-        mutated = true
+      } else {
+        // 已有条目：执行融合与字段更新
+        const existing = this.history[existingIndex]
+        if (existing !== undefined) {
+          let itemUpdated = false
+          let nextSeq = existing.seq
+          let nextTime = existing.time
+
+          if (existing.seq === undefined && msg.seq > 0) {
+            nextSeq = msg.seq
+            itemUpdated = true
+          }
+          if (msg.time > 0 && existing.time !== msg.time) {
+            nextTime = msg.time
+            itemUpdated = true
+          }
+
+          if (itemUpdated) {
+            this.history[existingIndex] = {
+              text: existing.text,
+              time: nextTime,
+              ...(nextSeq !== undefined ? { seq: nextSeq } : {}),
+            }
+            mutated = true
+          }
+        }
       }
     }
 

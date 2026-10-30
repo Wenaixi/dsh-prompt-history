@@ -615,3 +615,61 @@ test('18. 允许不同时间点重复提示词（如多次说继续）按时间�
   const up3 = engine.onKeyDown({ key: 'ArrowUp', currentDraft: '写点代码', isCaretOnFirstLine: true, isCaretOnLastLine: true })
   assert.deepEqual(up3.action, { type: 'set-draft', text: '继续', caret: 'start' })
 })
+
+test('19. 权威序号 seq 优先强去重：相同 seq 保证单会话唯一，杜绝并发推入重复项', () => {
+  const engine = new PromptHistoryEngine(baseConfig, new MockStorage(), new MockClock())
+  engine.switchSession('sess-seq-dedup')
+
+  // 模拟同一个节点在不同时间两次推入（例如先作为草稿事件到达，再作为落盘事件到达）
+  engine.supplementMessages([{ seq: 10, text: '第一句提示词', time: 1000 }])
+  engine.supplementMessages([{ seq: 10, text: '第一句提示词', time: 1005 }])
+
+  const history = engine.getHistory()
+  assert.equal(history.length, 1, '相同 seq 的节点绝对去重')
+  assert.equal(history[0].seq, 10)
+})
+
+test('20. 本地乐观提交（无 seq）与服务端回声（带 seq）精准对齐合并', () => {
+  const clock = new MockClock()
+  const engine = new PromptHistoryEngine(baseConfig, new MockStorage(), clock)
+  engine.switchSession('sess-optimistic-reconcile')
+
+  // 1. 用户按下 Enter，本地立刻乐观记录（时间戳为 1700000000000，无 seq）
+  engine.recordPrompt('启动自动化任务', 1700000000000)
+  assert.equal(engine.getHistory().length, 1)
+  assert.equal(engine.getHistory()[0].seq, undefined)
+
+  // 2. 800ms 后，服务端返回正式会话事件（seq=88，真实时间戳 1700000000100）
+  clock.advance(800)
+  const mutated = engine.supplementMessages([
+    { seq: 88, text: '启动自动化任务', time: 1700000000100 },
+  ])
+
+  // 3. 应就地合并对齐，而不是当作两条不同提示词添加
+  assert.equal(mutated, true)
+  const history = engine.getHistory()
+  assert.equal(history.length, 1, '乐观记录与服务端回声成功合并为一条')
+  assert.equal(history[0].seq, 88, '权威 seq 成功填充')
+  assert.equal(history[0].time, 1700000000100, '时间戳精准校准为服务端时间')
+})
+
+test('21. 零时间戳（time=0）历史节点在反复周期巡检下严格幂等不累加', () => {
+  const clock = new MockClock()
+  const engine = new PromptHistoryEngine(baseConfig, new MockStorage(), clock)
+  engine.switchSession('sess-zero-time')
+
+  // 首次装入无时间戳节点
+  engine.supplementMessages([{ seq: 1, text: '旧版离线会话记录', time: 0 }])
+  assert.equal(engine.getHistory().length, 1)
+
+  // 模拟定时器每 1.5 秒触发一次巡检
+  clock.advance(1500)
+  const mut1 = engine.supplementMessages([{ seq: 1, text: '旧版离线会话记录', time: 0 }])
+  assert.equal(mut1, false, '第二次巡检不应重复添加')
+
+  clock.advance(1500)
+  const mut2 = engine.supplementMessages([{ seq: 1, text: '旧版离线会话记录', time: 0 }])
+  assert.equal(mut2, false, '第三次巡检不应重复添加')
+
+  assert.equal(engine.getHistory().length, 1, '历史长度始终保持为 1')
+})

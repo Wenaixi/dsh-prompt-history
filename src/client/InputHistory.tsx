@@ -48,6 +48,7 @@ const OPEN_MENU = '[role="listbox"], [data-trigger-menu]'
 interface ChatSnapshot {
   readonly order?: readonly string[]
   readonly nodes?: { get?: (key: string) => unknown }
+  readonly legacy?: { readonly nodes?: readonly unknown[] }
 }
 
 declare module '@deepseek-ai/dsh-client-ui-conversation/client' {
@@ -285,8 +286,19 @@ export function InputHistory(props: InputHistoryProps): null {
   const phase = (useInput((s) => (s as { phase?: unknown }).phase) as string | undefined) ?? ''
   const chat = useConversation?.((c) => c?.views.get('chat'))
   const rawNodes = useMemo(() => {
-    if (chat === undefined || !Array.isArray(chat.order) || typeof chat.nodes?.get !== 'function') return []
-    return chat.order.map((key) => chat.nodes?.get?.(key)).filter((n): n is unknown => n !== null && n !== undefined)
+    if (chat === undefined) return []
+    // 优先从 order + nodes.get 提取
+    if (Array.isArray(chat.order) && typeof chat.nodes?.get === 'function') {
+      const fromOrder = chat.order
+        .map((key) => chat.nodes?.get?.(key))
+        .filter((n): n is unknown => n !== null && n !== undefined)
+      if (fromOrder.length > 0) return fromOrder
+    }
+    // 次选从 legacy.nodes 提取（当 order 尚未投影或为空时）
+    if (Array.isArray(chat.legacy?.nodes) && chat.legacy.nodes.length > 0) {
+      return [...chat.legacy.nodes]
+    }
+    return []
   }, [chat])
   const messages = useMemo(
     () => rawNodes.map(promptMessage).filter((m): m is PromptMessage => m !== null),
@@ -397,15 +409,19 @@ export function InputHistory(props: InputHistoryProps): null {
     })
   }, [engine])
 
-  // 会话切换：重置引擎状态并关闭浮层；若宿主已有历史消息则按需继承并增量补充
+  // 会话切换：重置引擎状态并关闭浮层
   useEffect(() => {
     engine.switchSession(sessionId)
     overlay.hide()
+  }, [engine, sessionId, overlay])
+
+  // 消息流实时响应式吸收与平滑继承：只要宿主消息就绪，立即执行吸收与旧版继承
+  useEffect(() => {
     if (messages.length > 0) {
       engine.inheritLegacyGlobalIfEligible(true)
       engine.supplementMessages(messages)
     }
-  }, [engine, sessionId, overlay])
+  }, [engine, messages])
 
   // 会话被归档删除时，清理对应会话的持久化历史
   useEffect(() => {

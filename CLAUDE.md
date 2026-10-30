@@ -133,6 +133,21 @@ npm pack --dry-run --json                                # 4. 产物完整性与
 
 ## 核心决策记录
 
+- **2026-10-31 会话历史全域无损加载与深层架构升级 (v2.7.0)**：
+  1. **宿主包装层穿透与双源降级（ChatNode & Legacy Fallback）**：查明宿主 `views.get('chat').nodes.get(key)` 返回由 `chatNode` 封装的外层 UI 节点，真实数据包裹在 `node.data` 中；重构 `promptMessage` 智能穿透 `node.data`；在 `InputHistory.tsx` 建立双源降级（优先 `order + nodes.get`，次选 `legacy.nodes`），彻底消灭未投影或视口延迟导致的空白；
+  2. **全形态用户输入无损覆盖**：
+     - 斜杠命令（Slash Commands）：深度支持 `kind === 'command'`，精准重构还原用户原始键入命令（如 `/${name} ${args}`），彻底解决以斜杠命令发起会话时历史记录丢失缺陷；
+     - 交互问答回复（Question Replies）：支持 `kind === 'question-reply' | 'user-question-reply'`；
+     - 动态命令输入（Command Input）：支持 `kind === 'command-input'`；
+     - 多样化内容块：支持纯文本字符串 content 与非标准块 text 提取；
+  3. **权威序号优先强去重与乐观回声精准融合（Seq-Aware & Echo Reconciliation）**：
+     - `sortAndClamp()` 与 `supplementMessages()` 优先以单会话唯一递增的 `seq > 0` 进行绝对去重；
+     - 本地用户按键即发即入库（乐观条目无 seq）与宿主下发的正式回声事件精准识别并就地融合，回填权威 seq 并校准时间戳，根除重影；
+     - 彻底修复缺失时间戳（`time === 0`）的旧会话节点在反复周期巡检下被重复追加的漏洞；
+  4. **会话切换即时响应式加载（Reactive Immediate Ingest）**：
+     - 将原本耦合在 `switchSession` 中的消息监听拆分为专属响应式 Effect，消息到达瞬间毫秒级入库与旧版继承，彻底消灭切换会话后的 1.5 秒空窗期；
+  5. **工程门禁全绿**：全套自动化单测扩充至 **90 项纯 Node 原生单测全绿**，静态类型检查 0 错误（`tsc --noEmit`），CJS Bundle gzip 维持在 ~32.08 kB。
+
 - **2026-10-18 双轴审查缺陷彻底根治与全渠道提交捕获 (v2.6.2)**：
   1. **宿主事件窗口（Session Event Window）根因确证**：查阅 `@deepseek-ai/dsh-client-ui-conversation` 与 `dsh-client-ui-chat`，确证长会话上方消息未加载属于宿主 Event Window 机制，导致 `views.get('chat').order` 仅包含当前视口内的切片节点；
   2. **右侧导航轨（TurnNavigator）复用瓶颈排除**：查明右侧历史小地图由 `mergeTurnRailItems` 消费 `turnOutline` 投影生成，但受宿主硬约束 `PROMPT_PREVIEW_LIMIT = 50` 截断、空白折叠（`replace(/\s+/g, " ")`）与非文本块剥离，属于严重有损大纲，坚决不能直接作为提示词回填；

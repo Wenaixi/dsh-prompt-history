@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.7.0] - 2026-10-31
+
+### Added
+- **全形态用户输入无损解析**：全面支持斜杠命令（`kind: 'command'` 还原完整 `/cmd args` 命令原型）、用户交互问答回复（`question-reply` / `user-question-reply`）及命令输入（`command-input`）。
+- **双数据源降级提取（Dual-Source Fallback）**：优先通过 `chat.order + chat.nodes.get(key)` 提取，自动回退到 `chat.legacy.nodes`，保障长会话与视口裁切场景下的历史完整性。
+- **权威序号 seq 优先强去重与乐观回声融合**：消灭网络回声重复项，支持本地即发入库与服务端真实节点的毫秒级校准融合。
+
+### Fixed
+- **宿主 chatNode 包装层穿透**：修复宿主 Chat 节点数据包裹在 `node.data` 导致 `content` 读取失败被整条丢弃的严重缺陷。
+- **会话切换异步时序脱节**：重构会话切换与消息监听为正交响应式 Effect，异步消息到达即刻毫秒级入库与继承，消除 1.5 秒空窗期。
+- **零时间戳巡检重复泄漏**：修复 `time === 0` 的旧会话记录在周期性巡检中反复累加重复条目的问题。
+
 本仓库的版本历史。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
 ## [Unreleased]
