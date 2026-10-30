@@ -196,7 +196,15 @@ export class PromptHistoryEngine {
         if (d.seq !== undefined && record.seq !== undefined && d.seq > 0 && record.seq > 0) {
           return d.seq === record.seq
         }
-        return d.text === record.text && d.time === record.time
+        if (d.text === record.text) {
+          if (d.time === record.time) return true
+          // 仅当恰好一方为乐观草稿（无 seq）而另一方为正式节点（有 seq）时，5 秒内执行回声对齐
+          const oneOptimistic = (d.seq === undefined && record.seq !== undefined) || (d.seq !== undefined && record.seq === undefined)
+          if (oneOptimistic && Math.abs(d.time - record.time) <= 5000) {
+            return true
+          }
+        }
+        return false
       })
 
       if (dupIdx === -1) {
@@ -293,9 +301,9 @@ export class PromptHistoryEngine {
       ? { text, time: recordTime, seq }
       : { text, time: recordTime }
 
-    // 仅在同时间戳连续重复时去重
+    // 同一文本连续重复提交防抖（吸收键盘 Enter 与 phase 跃迁同一瞬时的双重通知）
     const last = this.history[this.history.length - 1]
-    if (last !== undefined && last.text === text && recordTime === last.time) {
+    if (last !== undefined && last.text === text && Math.abs(recordTime - last.time) <= 500) {
       return
     }
 
