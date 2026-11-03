@@ -2,7 +2,7 @@
 
 ## 项目定位
 
-- **标识**：包名 `@wenaixi/dsh-prompt-history`（scoped，npm 与 GitHub 已发布，最新版本 `v2.7.0`）。仓库 `origin` = Wenaixi/dsh-prompt-history，`upstream` = Xiaofei-fei/dsh-prompt-history（只读）。主分支 `main`。
+- **标识**：包名 `@wenaixi/dsh-prompt-history`（scoped，npm 与 GitHub 已发布，最新版本 `v2.7.1`）。仓库 `origin` = Wenaixi/dsh-prompt-history，`upstream` = Xiaofei-fei/dsh-prompt-history（只读）。主分支 `main`。
 - **定位**：DeepSeek Harness (DSH) Web 输入框终端级交互套件——Claude Code 风格顺序历史回溯、双击 Esc 搜索面板、选中文本引用/自动复制、鼠标右键直接粘贴、前导空格阅后即焚、斜杠命令原型重构与长会话本地无损持久化记忆。
 - **形态**：Host 半侧声明配置 Schema 与抑制自动表单；浏览器半侧交付交互、自绘配置卡与双语词典。零第三方运行时依赖。
 
@@ -173,12 +173,7 @@ npm pack --dry-run --json                                # 4. 产物完整性与
   1. 确证长会话上方消息未加载属于宿主 Event Window 机制，确定输入端本地持久化（方案 B）全量回溯架构；
   2. 落地会话级隔离存储与旧全局历史平滑迁移，挂载 1500ms 安全增量巡检；
   3. 单测套件扩充至 82 项全绿，双真源闭环上线。
-- **2026-10-17 深度适配 DSH 0.2.1-rc.2 与废弃包彻底拔除 (v2.5.1)**：
-  1. 彻底对齐 0.2.1-rc.2 发版契约：删除 `src/invariant.ts` 与移除 `@deepseek-ai/dsh-invariants`；
-  2. 声明 `engines.dsh >=0.2.0-rc.2` 与 peerDependencies 兼容区间。
-- **2026-10-17 宿主契约纯净演进与零旧版包袱 (v2.5.0)**：
-  1. 废弃旧版分支，会话快照直连 `views.get('chat')`；
-  2. 补齐客户端双导出，单测扩充至 74 项全绿。
-- **2026-10-10 架构深度演进、元信息硬约束与质量重构 (v2.4.0~v2.4.1)**：
-  1. 图标 Lanczos 压缩至 77.63 KiB 满足 256 KiB 上限；
-  2. 落地配置自愈容灾系统与前导空格隐私过滤。
+- **2026-10-10 ~ 2026-10-17 宿主契约与架构基线确立 (v2.4.0 ~ v2.5.1)**：
+  1. 彻底对齐 0.2.1-rc.2 契约：删除废弃的 invariants 机制，会话快照直连 `views.get('chat')`，声明 `engines.dsh >=0.2.0-rc.2`；
+  2. 图标通过 Lanczos 算法精确压制至 77.63 KiB 满足宿主 256 KiB 硬约束；
+  3. 客户端双面显式导出拓扑就绪，建立单测基准与配置损坏自动提取愈合系统。
