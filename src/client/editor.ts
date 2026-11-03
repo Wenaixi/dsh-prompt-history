@@ -143,11 +143,39 @@ function isContentEditableCaretFirstLine(host: HTMLElement): boolean {
   const sel = document.getSelection()
   if (sel === null || sel.rangeCount === 0) return true
   const anchor = sel.anchorNode
-  if (anchor === null || !host.contains(anchor) || anchor === host) return true
+  if (anchor === null || !host.contains(anchor)) return true
+
+  // 1. 几何探测优先：若能获取光标与首行的 DOMRect，以视觉行高判定（精准支持视觉自动折行）
+  try {
+    const range = sel.getRangeAt(0)
+    const caretRect = range.getBoundingClientRect()
+    if (caretRect && typeof caretRect.height === 'number' && caretRect.height > 0) {
+      const startRange = document.createRange()
+      startRange.selectNodeContents(host)
+      startRange.collapse(true)
+      const firstLineRect = startRange.getBoundingClientRect()
+      if (firstLineRect && typeof firstLineRect.height === 'number' && firstLineRect.height > 0) {
+        // 若光标顶部明显低于首行底部（预留 2px 浮点容差），说明光标绝对在第二行及以后
+        if (caretRect.top >= firstLineRect.bottom - 2) {
+          return false
+        }
+      }
+    }
+  } catch {
+    /* 容错降级至 DOM 结构判定 */
+  }
+
+  // 2. DOM 结构判定：
+  // 若 anchor 为 host 自身（光标直接停在根容器，常发生于块级元素之间或多段落切换）
+  if (anchor === host) {
+    // anchorOffset 表示子节点索引，若有多段且大于 0 说明光标停在第 2 个或后续段落
+    if (host.childNodes.length > 1 && sel.anchorOffset > 0) return false
+    return true
+  }
 
   const firstBlock = host.firstElementChild
   if (firstBlock !== null) {
-    // 若光标不在首个块级元素内部，绝对不是第一行（例如在第 2 段）
+    // 若光标不在首个块级元素内部，绝对不是第一行（例如在第 2 段、第 3 段）
     if (!firstBlock.contains(anchor)) return false
     // 若在首个块内，检查首块起点到当前光标之间是否有软换行 <br>
     return !hasBrInRange(firstBlock, 0, anchor, sel.anchorOffset)
@@ -164,7 +192,35 @@ function isContentEditableCaretLastLine(host: HTMLElement): boolean {
   const sel = document.getSelection()
   if (sel === null || sel.rangeCount === 0) return true
   const anchor = sel.anchorNode
-  if (anchor === null || !host.contains(anchor) || anchor === host) return true
+  if (anchor === null || !host.contains(anchor)) return true
+
+  // 1. 几何探测优先：若能获取光标与末行的 DOMRect，以视觉行高判定（精准支持视觉自动折行）
+  try {
+    const range = sel.getRangeAt(0)
+    const caretRect = range.getBoundingClientRect()
+    if (caretRect && typeof caretRect.height === 'number' && caretRect.height > 0) {
+      const endRange = document.createRange()
+      endRange.selectNodeContents(host)
+      endRange.collapse(false)
+      const lastLineRect = endRange.getBoundingClientRect()
+      if (lastLineRect && typeof lastLineRect.height === 'number' && lastLineRect.height > 0) {
+        // 若光标底部明显高于末行顶部（预留 2px 浮点容差），说明光标绝对在末行之上
+        if (caretRect.bottom <= lastLineRect.top + 2) {
+          return false
+        }
+      }
+    }
+  } catch {
+    /* 容错降级至 DOM 结构判定 */
+  }
+
+  // 2. DOM 结构判定：
+  if (anchor === host) {
+    // 若 anchor 为 host 且 offset 小于末尾子节点索引，说明不在末段
+    const count = host.childNodes.length
+    if (count > 1 && sel.anchorOffset < count - 1) return false
+    return true
+  }
 
   const lastBlock = host.lastElementChild
   if (lastBlock !== null) {
@@ -180,23 +236,37 @@ function isContentEditableCaretLastLine(host: HTMLElement): boolean {
 }
 
 /** Whether the caret sits on the first line of the draft (or the draft is single-line). */
-export function isCaretOnFirstLine(host: HTMLTextAreaElement | HTMLElement): boolean {
+export function isCaretOnFirstLine(host: HTMLTextAreaElement | HTMLElement, draft?: string): boolean {
   if (host instanceof HTMLTextAreaElement) {
-    const text = editorText(host)
+    const text = draft ?? editorText(host)
     const firstBreak = text.indexOf('\n')
     if (firstBreak === -1) return true
     return editorCaretOffset(host) <= firstBreak
+  }
+  if (typeof draft === 'string' && draft.includes('\n')) {
+    const sel = editorSelectionOffsets(host)
+    if (sel !== null) {
+      const firstBreak = draft.indexOf('\n')
+      if (firstBreak !== -1 && sel.start > firstBreak) return false
+    }
   }
   return isContentEditableCaretFirstLine(host)
 }
 
 /** Whether the caret sits on the last line of the draft (or the draft is single-line). */
-export function isCaretOnLastLine(host: HTMLTextAreaElement | HTMLElement): boolean {
+export function isCaretOnLastLine(host: HTMLTextAreaElement | HTMLElement, draft?: string): boolean {
   if (host instanceof HTMLTextAreaElement) {
-    const text = editorText(host)
+    const text = draft ?? editorText(host)
     const lastBreak = text.lastIndexOf('\n')
     if (lastBreak === -1) return true
     return editorCaretOffset(host) > lastBreak
+  }
+  if (typeof draft === 'string' && draft.includes('\n')) {
+    const sel = editorSelectionOffsets(host)
+    if (sel !== null) {
+      const lastBreak = draft.lastIndexOf('\n')
+      if (lastBreak !== -1 && sel.end < lastBreak) return false
+    }
   }
   return isContentEditableCaretLastLine(host)
 }

@@ -234,6 +234,7 @@ function usePromptHistoryHotkeys(params: {
       const card = (target as Element).closest(COMPOSER_CARD)
       if (card === null) return
       if (e.isComposing || e.keyCode === 229) return
+      if (card.querySelector('[data-composer-composing]') !== null) return
 
       const panelOpen = overlay.isOpen() || engine.getMode() === 'searching'
       if (!panelOpen && card.querySelector(OPEN_MENU) !== null) return
@@ -243,8 +244,8 @@ function usePromptHistoryHotkeys(params: {
       if (live.phase === 'adjudicating' || live.phase === 'submitting' || live.removed) return
 
       const host = editorHost()
-      const isFirst = host !== null ? isCaretOnFirstLine(host) : true
-      const isLast = host !== null ? isCaretOnLastLine(host) : true
+      const isFirst = host !== null ? isCaretOnFirstLine(host, live.draft) : true
+      const isLast = host !== null ? isCaretOnLastLine(host, live.draft) : true
 
       // 键盘提交感知：用户按下 Enter 或 Ctrl/Cmd+Enter 发送非空草稿时即刻无损入库
       const isEnterSubmit = e.key === 'Enter' && !e.shiftKey && !e.altKey

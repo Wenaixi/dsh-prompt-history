@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.7.1] - 2026-11-04
+
+### Fixed
+- **多行输入非首行按 Up 误跳历史缺陷根治**：
+  - 引入 `getBoundingClientRect()` 真实屏幕几何测距，通过折叠 Range 测量首行 `firstLineRect` 与末行 `lastLineRect`，彻底攻克单行长文本 CSS 自动折行（Visual Row Wrapping）时被误判为首行的严重缺陷。
+  - 修复多段落切换时 `anchorNode === host` 且 `anchorOffset > 0` 被误判为第一行的假阳性。
+  - 引入实时草稿字符串换行符（`\n`）与光标字符偏移互锁校验。
+- **输入法（IME）合成态保护**：接入宿主 `[data-composer-composing]` 标记与原生 `isComposing` 双重压制，输入法候选选词期间绝对不抢占按键。
+
+### Added
+- **Claude Code 规范全量对齐**：
+  - **Readline / Emacs 快捷键**：全面支持 `Ctrl+P`（上一条）与 `Ctrl+N`（下一条），与 `ArrowUp`/`ArrowDown` 保持严格对称的边缘步进逻辑。
+  - **交互式反向历史搜索（Ctrl+R）**：支持在空闲态按 `Ctrl+R` 直接唤起搜索面板，在搜索态下连续按 `Ctrl+R` 循环切换更早匹配项。
+  - **连续重复提交折叠（Consecutive Duplicates Deduplication）**：连续提交相同提示词（无论间隔多久）自动折叠为一条，回溯时不出现连续重影。
+
 ## [2.7.0] - 2026-10-31
 
 ### Added

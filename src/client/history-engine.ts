@@ -301,9 +301,17 @@ export class PromptHistoryEngine {
       ? { text, time: recordTime, seq }
       : { text, time: recordTime }
 
-    // 同一文本连续重复提交防抖（吸收键盘 Enter 与 phase 跃迁同一瞬时的双重通知）
+    // Claude Code 规范：连续相同提示词提交折叠去重（无论间隔多久只留最新一条）
     const last = this.history[this.history.length - 1]
-    if (last !== undefined && last.text === text && Math.abs(recordTime - last.time) <= 500) {
+    if (last !== undefined && last.text === text) {
+      if (recordTime > last.time || (seq !== undefined && last.seq === undefined)) {
+        this.history[this.history.length - 1] = {
+          ...last,
+          time: recordTime > last.time ? recordTime : last.time,
+          ...(seq !== undefined ? { seq } : {}),
+        }
+        this.persistCurrent()
+      }
       return
     }
 
@@ -443,6 +451,12 @@ export class PromptHistoryEngine {
     if (!this.config.historyEnabled) return { handled: false, action: { type: 'none' } }
     if (ctx.isComposing) return { handled: false, action: { type: 'none' } }
 
+    const isCtrlR = (ctx.key === 'r' || ctx.key === 'R') && Boolean(ctx.ctrlKey) && !ctx.metaKey && !ctx.altKey
+    const isUp = (ctx.key === 'ArrowUp' && !ctx.shiftKey && !ctx.ctrlKey && !ctx.metaKey && !ctx.altKey) ||
+                 ((ctx.key === 'p' || ctx.key === 'P') && Boolean(ctx.ctrlKey) && !ctx.shiftKey && !ctx.metaKey && !ctx.altKey)
+    const isDown = (ctx.key === 'ArrowDown' && !ctx.shiftKey && !ctx.ctrlKey && !ctx.metaKey && !ctx.altKey) ||
+                   ((ctx.key === 'n' || ctx.key === 'N') && Boolean(ctx.ctrlKey) && !ctx.shiftKey && !ctx.metaKey && !ctx.altKey)
+
     // ----------------- 模式 A：搜索面板开启中 -----------------
     if (this.picker !== null) {
       if (ctx.key === 'Escape') {
@@ -451,12 +465,12 @@ export class PromptHistoryEngine {
       if (ctx.key === 'Enter' || ctx.key === 'Tab') {
         return { handled: true, action: this.acceptSearch() }
       }
-      if (ctx.key === 'ArrowUp' || ctx.key === 'ArrowDown' || ctx.key === 'Home' || ctx.key === 'End') {
+      if (isCtrlR || isUp || isDown || ctx.key === 'Home' || ctx.key === 'End') {
         const snapshot = this.getSearchSnapshot()
         if (snapshot === null || snapshot.total === 0) return { handled: true, action: { type: 'none' } }
         let nextIndex = snapshot.highlight
-        if (ctx.key === 'ArrowUp') nextIndex = clampIndex(snapshot.highlight, -1, snapshot.total)
-        else if (ctx.key === 'ArrowDown') nextIndex = clampIndex(snapshot.highlight, 1, snapshot.total)
+        if (isUp) nextIndex = clampIndex(snapshot.highlight, -1, snapshot.total)
+        else if (isCtrlR || isDown) nextIndex = clampIndex(snapshot.highlight, 1, snapshot.total)
         else if (ctx.key === 'Home') nextIndex = 0
         else if (ctx.key === 'End') nextIndex = snapshot.total - 1
 
@@ -472,6 +486,12 @@ export class PromptHistoryEngine {
     }
 
     // ----------------- 模式 B：面板关闭状态 -----------------
+
+    // Claude Code 规范：Ctrl+R 唤起交互式反向历史搜索
+    if (isCtrlR) {
+      if (this.history.length === 0) return { handled: true, action: { type: 'none' } }
+      return { handled: true, action: this.openSearch(ctx.currentDraft) }
+    }
 
     // 非 Esc 键立即清零待定 Esc 态（Primed Reset）
     if (ctx.key !== 'Escape') {
@@ -513,19 +533,16 @@ export class PromptHistoryEngine {
       }
     }
 
-    // 上下方向键：Claude Code 语义浏览历史
-    if (ctx.key !== 'ArrowUp' && ctx.key !== 'ArrowDown') {
-      return { handled: false, action: { type: 'none' } }
-    }
-    if (ctx.shiftKey || ctx.ctrlKey || ctx.metaKey || ctx.altKey) {
+    // 方向键（Up/Down）与 Readline/Emacs 键（Ctrl+P/Ctrl+N）：Claude Code 规范浏览历史
+    if (!isUp && !isDown) {
       return { handled: false, action: { type: 'none' } }
     }
     if (this.history.length === 0) {
       return { handled: false, action: { type: 'none' } }
     }
 
-    // ArrowUp：首行接管，逐条往回
-    if (ctx.key === 'ArrowUp') {
+    // Up / Ctrl+P：首行接管，逐条往回
+    if (isUp) {
       if (!ctx.isCaretOnFirstLine) return { handled: false, action: { type: 'none' } }
       const next = upStep(this.browse.step, this.history.length)
       if (this.browse.step === 0) {
@@ -542,7 +559,7 @@ export class PromptHistoryEngine {
       return { handled: true, action: { type: 'set-draft', text, caret: 'start' } }
     }
 
-    // ArrowDown：未浏览时不拦截；末行接管，递减恢复草稿
+    // Down / Ctrl+N：未浏览时不拦截；末行接管，递减恢复草稿
     if (this.browse.step === 0) return { handled: false, action: { type: 'none' } }
     if (!ctx.isCaretOnLastLine) return { handled: false, action: { type: 'none' } }
     const next = downStep(this.browse.step)

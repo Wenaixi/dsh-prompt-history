@@ -150,3 +150,81 @@ test('contenteditable: 空输入框（仅含一个占位段落）', () => {
   assert.equal(isCaretOnFirstLine(host), true)
   assert.equal(isCaretOnLastLine(host), true)
 })
+test('contenteditable: 当 anchorNode 为 host 且 anchorOffset > 0 时，指向后续段落，绝不是第一行', () => {
+  const host = new FakeElement()
+  const p1 = new FakeElement()
+  p1.nodeName = 'P'
+  p1.textContent = '段落一'
+  const p2 = new FakeElement()
+  p2.nodeName = 'P'
+  p2.textContent = '段落二'
+  host.appendChild(p1)
+  host.appendChild(p2)
+
+  // anchorNode 是 host，offset 是 1（指向 p2）
+  ;(globalThis as any).document = {
+    getSelection: () => ({
+      rangeCount: 1,
+      anchorNode: host,
+      anchorOffset: 1,
+      isCollapsed: true,
+      getRangeAt: () => ({
+        getBoundingClientRect: () => ({ top: 0, bottom: 0, height: 0 }),
+      }),
+    }),
+    createRange: () => ({
+      setStart: () => {},
+      setEnd: () => {},
+      intersectsNode: () => false,
+      commonAncestorContainer: host,
+      getBoundingClientRect: () => ({ top: 0, bottom: 0, height: 0 }),
+      collapse: () => {},
+      selectNodeContents: () => {},
+    }),
+    createTreeWalker: () => ({
+      nextNode: () => null,
+    }),
+  }
+
+  assert.equal(isCaretOnFirstLine(host), false, 'anchorOffset > 0 指向第 2 段时绝不能被误判为第一行！')
+  assert.equal(isCaretOnLastLine(host), true, 'anchorOffset 为最后一个子节点时应为末行')
+})
+
+test('contenteditable: 几何检测（视觉自动换行，无换行符但有视觉行高差）', () => {
+  const host = new FakeElement()
+  const p1 = new FakeElement()
+  p1.nodeName = 'P'
+  p1.textContent = '长文本在输入框内产生了多行视觉折行...'
+  host.appendChild(p1)
+
+  // 模拟光标在第二行（top: 50, bottom: 70），首行高度为（top: 20, bottom: 40）
+  ;(globalThis as any).document = {
+    getSelection: () => ({
+      rangeCount: 1,
+      anchorNode: p1,
+      anchorOffset: 20,
+      isCollapsed: true,
+      getRangeAt: () => ({
+        getBoundingClientRect: () => ({ top: 50, bottom: 70, height: 20 }),
+      }),
+    }),
+    createRange: () => {
+      let isFirst = true
+      return {
+        setStart: () => {},
+        setEnd: () => {},
+        intersectsNode: () => false,
+        commonAncestorContainer: host,
+        selectNodeContents: () => {},
+        collapse: (toStart: boolean) => { isFirst = toStart },
+        getBoundingClientRect: () => isFirst ? { top: 20, bottom: 40, height: 20 } : { top: 50, bottom: 70, height: 20 },
+      }
+    },
+    createTreeWalker: () => ({
+      nextNode: () => null,
+    }),
+  }
+
+  assert.equal(isCaretOnFirstLine(host), false, '光标视觉位置在第二行时，绝不能被误判为第一行！')
+  assert.equal(isCaretOnLastLine(host), true, '光标视觉位置在末行时应为末行')
+})

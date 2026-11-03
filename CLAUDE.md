@@ -77,18 +77,21 @@
 
 ## 交互语义标准
 
-1. **方向键浏览（Claude Code 规范）**：
-   - **↑**：光标在第一行时接管，从最新一条逐条往回浏览；到底不环绕；回填时光标停在行首。
-   - **↓**：处于浏览状态且光标在最后一行时接管，往更新方向步进；回填时光标停在行尾；到底时还原最初编辑草稿。
-   - 浏览期间用户手动修改草稿，立刻脱离并丢弃当前浏览上下文。
-2. **长会话本地无损持久化回溯**：
+1. **方向键与 Emacs 导航（Claude Code 规范）**：
+   - **↑ / Ctrl+P**：当输入跨越多行（无论是自动折行 Visual Wrapping 还是回车换行）时，优先在各视觉行之间移动光标；仅当光标位于首个视觉行（首边缘）时接管并向更早历史回溯；到底不环绕；回填时光标停在行首。
+   - **↓ / Ctrl+N**：处于浏览状态且光标位于末个视觉行（末边缘）时接管并向更新方向步进；回填时光标停在行尾；到底时还原最初草稿。
+   - **真实视觉几何判定**：引入 `getBoundingClientRect()` 测量光标相对于首行/末行的真实物理像素行高差，结合草稿换行符与段落索引多层互锁，彻底根除自动折行与段落切换时的误跳历史。
+   - **输入法（IME）合成态保护**：宿主 `[data-composer-composing]` 标记与原生 `isComposing` 双重压制，输入法候选选词期间绝对不拦截任何键位。
+2. **反向历史交互搜索（Ctrl+R 与 双击 Esc）**：
+   - **Ctrl+R**：对齐 Claude Code 官方终端交互，按下直接唤起反向搜索面板；在搜索态下连续按下 `Ctrl+R` 循环步进更早匹配项；支持 `Enter`/`Tab` 采纳、`Esc` 取消。
+   - **双击 Esc**：非空草稿 800ms 内双击存入历史并清空；空草稿双击唤起搜索面板。
+3. **连续重复提交折叠（Consecutive Duplicates）**：
+   - 严格遵循 Claude Code 规范，连续多次提交完全相同的提示词（无论间隔多久）自动合并折叠为单一条目，回溯时不出现连续重影。
+4. **长会话本地无损持久化回溯**：
    - 无论宿主是否折叠隐藏早期消息，回溯始终直接命中当前会话的本地历史环，100% 保持原始多行换行与代码块，0 延迟、0 截断。
-3. **双击 Esc**：
-   - **非空草稿**：第一次按下提示「再按一次 Esc 清空」并透传给宿主；800 ms 内第二次按下将草稿存入历史后清空。
-   - **空草稿**：双击直接唤起历史搜索面板；Esc 还原初始状态并关闭面板。
-4. **行内斜杠技能补全**：
+5. **行内斜杠技能补全**：
    - 当草稿已有前导认领命令（如 `/plan `）且光标处于后续参数中的行内斜杠时，临时将守卫降级为 `plain` 释放宿主补全管线，不影响前导令牌与 URL 边界。
-5. **建议菜单让位**：
+6. **建议菜单让位**：
    - 宿主建议菜单处于打开状态（`[role="listbox"], [data-trigger-menu]`）时，方向键完全让位宿主菜单；本插件面板展开时绕过该让位防死锁。
 
 ---
@@ -98,7 +101,7 @@
 ### 门禁执行序列
 ```sh
 node node_modules/typescript/bin/tsc --noEmit             # 1. 静态类型检查 (0 错误)
-node --experimental-strip-types --test test/*.test.ts     # 2. 90 项纯 Node 原生单测全绿 (~380ms)
+node --experimental-strip-types --test test/*.test.ts     # 2. 96 项纯 Node 原生单测全绿 (~380ms)
 pnpm build                                                # 3. 两步构建: tsc 声明到 lib/types + tsdown 打包
 npm pack --dry-run --json                                # 4. 产物完整性与文件白名单校验 (41 文件)
 ```
@@ -134,6 +137,21 @@ npm pack --dry-run --json                                # 4. 产物完整性与
 
 ## 核心决策记录
 
+- **2026-11-04 多行光标穿透深度修复与 Claude Code 规范全量对齐 (v2.7.1)**：
+  1. **多行光标首末行判定根因根治与几何测距（Visual Row & Multiline Caret Geometry）**：
+     - 查明光标在非首行按 Up 误跳历史的 4 重根本诱因：
+       a. 单行长文本因宽度限制产生 CSS 自动折行（Visual Row Wrapping）时，DOM 内既无 `\n` 也无 `<br>`，旧判定误判为第一行；
+       b. 在段落间移动或点击时，Selection 的 `anchorNode` 停在 `host` 根节点，旧逻辑无脑执行 `if (anchor === host) return true`，无视 `anchorOffset > 0`；
+       c. 缺失真实屏幕几何测距（BoundingClientRect）；
+       d. 缺失实时草稿字符串换行符与字符偏移互锁；
+     - 实施混合几何测距法则：通过折叠 Range 测量首行 `firstLineRect` 与末行 `lastLineRect`，结合 `anchor === host` 段落索引与草稿字符串换行符多层守卫，彻底消灭误吞多行光标移动缺陷；
+  2. **Claude Code 规范全量对齐（Keyboard & History Protocol）**：
+     - **Emacs / Readline 键位支持**：补齐 `Ctrl+P`（上一条）与 `Ctrl+N`（下一条），与 `ArrowUp`/`ArrowDown` 保持严格对称的边缘步进逻辑；
+     - **交互式反向历史搜索（Ctrl+R）**：支持在空闲态按 `Ctrl+R` 直接唤起搜索面板，在搜索态下连续按 `Ctrl+R` 循环切换更早匹配项；
+     - **连续重复提交折叠（Consecutive Deduplication）**：连续提交相同内容只留一条，彻底杜绝回溯时出现连续相同提示词；
+     - **输入法合成态全链路防护**：接入宿主 `[data-composer-composing]` 标记与原生 `isComposing` 保护，输入法选词期间绝不抢占按键；
+  3. **TDD 红绿双循环验证与门禁全绿**：
+     - 补充 6 项高精度单测（重现首行假阳性、折行几何差测、Ctrl+P/N、Ctrl+R、连续去重与多行边界穿透），全量单测扩充至 **96 项纯 Node 原生单测全绿**，TypeScript 0 错误通过，打包校验无缝达标。
 - **2026-10-31 会话历史全域无损加载与深层架构升级 (v2.7.0)**：
   1. **宿主包装层穿透与双源降级（ChatNode & Legacy Fallback）**：查明宿主 `views.get('chat').nodes.get(key)` 返回由 `chatNode` 封装的外层 UI 节点，真实数据包裹在 `node.data` 中；重构 `promptMessage` 智能穿透 `node.data`；在 `InputHistory.tsx` 建立双源降级（优先 `order + nodes.get`，次选 `legacy.nodes`），彻底消灭未投影或视口延迟导致的空白；
   2. **全形态用户输入无损覆盖**：

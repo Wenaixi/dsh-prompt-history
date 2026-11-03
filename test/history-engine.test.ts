@@ -673,3 +673,116 @@ test('21. 零时间戳（time=0）历史节点在反复周期巡检下严格幂�
 
   assert.equal(engine.getHistory().length, 1, '历史长度始终保持为 1')
 })
+test('22. Claude Code 规范：Ctrl+P 与 Ctrl+N 历史回溯导航', () => {
+  const engine = new PromptHistoryEngine(baseConfig, new MockStorage(), new MockClock())
+  engine.switchSession('sess-ctrl-pn')
+  engine.recordPrompt('first command')
+  engine.recordPrompt('second command')
+
+  // 首行按 Ctrl+P 回溯上一条
+  const resP1 = engine.onKeyDown({
+    key: 'p',
+    ctrlKey: true,
+    currentDraft: '',
+    isCaretOnFirstLine: true,
+    isCaretOnLastLine: true,
+  })
+  assert.equal(resP1.handled, true)
+  assert.deepEqual(resP1.action, { type: 'set-draft', text: 'second command', caret: 'start' })
+
+  // 再次按 Ctrl+P 回溯更早一条
+  const resP2 = engine.onKeyDown({
+    key: 'p',
+    ctrlKey: true,
+    currentDraft: 'second command',
+    isCaretOnFirstLine: true,
+    isCaretOnLastLine: true,
+  })
+  assert.equal(resP2.handled, true)
+  assert.deepEqual(resP2.action, { type: 'set-draft', text: 'first command', caret: 'start' })
+
+  // 末行按 Ctrl+N 往更新方向导航
+  const resN1 = engine.onKeyDown({
+    key: 'n',
+    ctrlKey: true,
+    currentDraft: 'first command',
+    isCaretOnFirstLine: true,
+    isCaretOnLastLine: true,
+  })
+  assert.equal(resN1.handled, true)
+  assert.deepEqual(resN1.action, { type: 'set-draft', text: 'second command', caret: 'end' })
+})
+
+test('23. Claude Code 规范：Ctrl+R 唤起反向历史搜索并在搜索态下循环切换', () => {
+  const engine = new PromptHistoryEngine(baseConfig, new MockStorage(), new MockClock())
+  engine.switchSession('sess-ctrl-r')
+  engine.recordPrompt('git commit -m "feat"')
+  engine.recordPrompt('git status')
+  engine.recordPrompt('npm test')
+
+  // 空闲态下按 Ctrl+R：打开搜索面板
+  const resR1 = engine.onKeyDown({
+    key: 'r',
+    ctrlKey: true,
+    currentDraft: '',
+    isCaretOnFirstLine: true,
+    isCaretOnLastLine: true,
+  })
+  assert.equal(resR1.handled, true)
+  assert.equal(resR1.action.type, 'show-panel')
+  assert.equal(engine.getMode(), 'searching')
+
+  // 搜索态下再按 Ctrl+R：循环切换到下一个历史匹配
+  const resR2 = engine.onKeyDown({
+    key: 'r',
+    ctrlKey: true,
+    currentDraft: '',
+    isCaretOnFirstLine: true,
+    isCaretOnLastLine: true,
+  })
+  assert.equal(resR2.handled, true)
+  assert.equal(resR2.action.type, 'show-panel')
+})
+
+test('24. Claude Code 规范：连续相同提示词提交折叠去重', () => {
+  const clock = new MockClock()
+  const engine = new PromptHistoryEngine(baseConfig, new MockStorage(), clock)
+  engine.switchSession('sess-consecutive-dups')
+
+  engine.recordPrompt('ls -la')
+  clock.advance(10000) // 10秒后
+  engine.recordPrompt('ls -la') // 连续提交相同提示词
+
+  const history = engine.getHistory()
+  assert.equal(history.length, 1, '连续两次相同命令只记录一次，不出现连续两个一模一样的历史项')
+
+  // 若中间有不同提示词，则允许保留
+  engine.recordPrompt('pwd')
+  clock.advance(5000)
+  engine.recordPrompt('ls -la')
+  assert.equal(engine.getHistory().length, 3, '非连续相同提示词正常保留')
+})
+
+test('25. 多行输入非首行/非末行绝对不拦截：保留给输入框内部光标穿梭', () => {
+  const engine = new PromptHistoryEngine(baseConfig, new MockStorage(), new MockClock())
+  engine.switchSession('sess-multiline')
+  engine.recordPrompt('historical prompt')
+
+  // 多行输入时，光标在第二行（isCaretOnFirstLine: false）按 ArrowUp / Ctrl+P
+  const resUp = engine.onKeyDown({
+    key: 'ArrowUp',
+    currentDraft: 'line1\nline2',
+    isCaretOnFirstLine: false,
+    isCaretOnLastLine: true,
+  })
+  assert.equal(resUp.handled, false, '非首行按 ArrowUp 绝对不拦截')
+
+  const resCtrlP = engine.onKeyDown({
+    key: 'p',
+    ctrlKey: true,
+    currentDraft: 'line1\nline2',
+    isCaretOnFirstLine: false,
+    isCaretOnLastLine: true,
+  })
+  assert.equal(resCtrlP.handled, false, '非首行按 Ctrl+P 绝对不拦截')
+})
