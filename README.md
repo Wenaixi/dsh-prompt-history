@@ -62,14 +62,17 @@ Client-side architectural boundaries:
 
 ## Core Features
 
-### 1. Claude Code-Style Arrow-Key History Recall
-- **Backward traversal on the first line (↑)**: when the caret is on the first line of the composer, pressing ↑ walks backward through historical prompts starting from the newest entry. The caret parks at the beginning of each recalled line; reaching the oldest entry stops without wrapping.
-- **Forward traversal on the last line (↓)**: while in history browsing mode with the caret on the last line, pressing ↓ moves toward newer prompts, parking the caret at the line end. Traversing past the newest entry faithfully restores the original draft typed prior to browsing (restoring an empty line if started empty).
+### 1. Claude Code-Style Arrow-Key & Emacs History Recall
+- **Backward traversal on the first visual row (↑ or Ctrl+P)**: when the caret rests on the first visual row of the composer, pressing ↑ or `Ctrl+P` walks backward through historical prompts starting from the newest entry. The caret parks at the beginning of each recalled line; reaching the oldest entry stops without wrapping.
+- **Forward traversal on the last visual row (↓ or Ctrl+N)**: while in history browsing mode with the caret on the last visual row, pressing ↓ or `Ctrl+N` moves toward newer prompts, parking the caret at the line end. Traversing past the newest entry faithfully restores the original draft typed prior to browsing (restoring an empty line if started empty).
 - **Edit exits browsing**: typing any character while browsing history immediately exits browsing mode, retaining the current draft.
-- **Smart multi-line detection**: logic relies on Lexical's `<br>` block boundaries. Up/Down key takeovers only occur on the logical first or last lines, leaving intra-draft cursor navigation undisturbed.
+- **Visual row wrapping & multi-line geometric detection**: utilizes actual screen geometry (`getBoundingClientRect`). Whether a draft wraps across multiple visual rows due to width limits (Visual Row Wrapping) or contains true linebreaks, arrow keys first traverse across visual rows; history recall is gated strictly at the top or bottom edges, eliminating accidental history jumps while editing multi-line text.
+- **Consecutive duplicate deduplication**: strictly conforms to Claude Code specification; submitting identical prompts consecutively collapses duplicates into a single entry, preventing consecutive identical recalls.
+- **IME composition guard**: host `[data-composer-composing]` attribute and native `isComposing` guards ensure that arrow keys never trigger history recall while converting IME candidates.
 
-### 2. Double-Escape Prompt History Picker
-- **Fast overlay trigger**: with an empty composer draft, pressing Escape twice within 800 ms brings up the full prompt-history overlay (newest first, keeping only the latest occurrence of duplicates).
+### 2. Reverse Interactive History Search (Ctrl+R & Double-Escape)
+- **Ctrl+R shortcut**: matches official Claude Code terminal behavior; pressing `Ctrl+R` inside the composer immediately summons the reverse search overlay. Pressing `Ctrl+R` again while searching cycles to older matches.
+- **Double-Escape trigger**: with an empty composer draft, pressing Escape twice within 800 ms also brings up the prompt-history overlay.
 - **Real-time filtering & highlighting**: keyboard focus remains on the composer. Typing performs live substring and character subsequence fuzzy matching (`fuzzyMatch`, e.g., typing `dpl` matches `deploy now`), visually highlighting matched characters in the list.
 - **Direct keyboard control**: ↑ and ↓ navigate the active highlight (clamped at boundaries without wrapping, never modifying the underlying draft), Home and End jump to edges, Enter or Tab populates the highlighted item, and Escape closes the overlay, restoring the prior draft.
 - **Relative timestamps & wide-screen preview**: each row displays a relative age indicator (`5m / 3h / 2d`). On viewports ≥ 1000px wide, a right-hand pane provides an expanded multi-line preview of the highlighted item. The footer live-counts "matches / total".
@@ -103,8 +106,9 @@ By default, history is derived directly from the current conversation's message 
 
 | Shortcut / Gesture | Context | Behavior |
 |---|---|---|
-| `↑` | Composer first line | Recalls older prompt history (caret at line start; clamps at oldest) |
-| `↓` | Composer last line (browsing) | Recalls newer prompt history (caret at line end; restores draft at bottom) |
+| `↑` / `Ctrl+P` | Composer first visual row | Recalls older prompt history (navigates visual rows first in multi-line), caret at start |
+| `↓` / `Ctrl+N` | Composer last visual row (browsing) | Recalls newer prompt history (caret at end; restores original draft at bottom) |
+| `Ctrl+R` | Inside composer | Opens reverse history search; pressing again cycles to older matches |
 | `Esc × 2` | Empty draft (within 800ms) | Opens the history picker overlay |
 | `Esc × 2` | Non-empty draft (within 800ms) | First shows clear hint; second saves draft to history & clears input |
 | `↑` / `↓` | Inside history picker | Moves active highlight (clamped at edges, no wrapping) |
