@@ -1,204 +1,189 @@
 # Changelog
 
+本项目所有值得记录的变更都记录在这个文件中。
+
+格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
+
+## [Unreleased]
+
 ## [2.7.1] - 2026-11-04
 
 ### Fixed
-- **多行输入非首行按 Up 误跳历史缺陷根治**：
-  - 引入 `getBoundingClientRect()` 真实屏幕几何测距，通过折叠 Range 测量首行 `firstLineRect` 与末行 `lastLineRect`，彻底攻克单行长文本 CSS 自动折行（Visual Row Wrapping）时被误判为首行的严重缺陷。
-  - 修复多段落切换时 `anchorNode === host` 且 `anchorOffset > 0` 被误判为第一行的假阳性。
-  - 引入实时草稿字符串换行符（`\n`）与光标字符偏移互锁校验。
-- **输入法（IME）合成态保护**：接入宿主 `[data-composer-composing]` 标记与原生 `isComposing` 双重压制，输入法候选选词期间绝对不抢占按键。
+
+- 修复多行输入非首行按 Up 误跳历史：用 `getBoundingClientRect()` 测量首行与末行的折叠 Range 位置，解决单行长文本 CSS 自动折行被误判为首行的问题。
+- 修复多段落切换时 `anchorNode === host` 且 `anchorOffset > 0` 被误判为第一行的假阳性。
+- 接入实时草稿字符串换行符与光标字符偏移的互锁校验。
+- 输入法合成态保护：接入宿主 `[data-composer-composing]` 标记与原生 `isComposing` 双重压制，选词期间不抢占按键。
 
 ### Added
-- **Claude Code 规范全量对齐**：
-  - **Readline / Emacs 快捷键**：全面支持 `Ctrl+P`（上一条）与 `Ctrl+N`（下一条），与 `ArrowUp`/`ArrowDown` 保持严格对称的边缘步进逻辑。
-  - **交互式反向历史搜索（Ctrl+R）**：支持在空闲态按 `Ctrl+R` 直接唤起搜索面板，在搜索态下连续按 `Ctrl+R` 循环切换更早匹配项。
-  - **连续重复提交折叠（Consecutive Duplicates Deduplication）**：连续提交相同提示词（无论间隔多久）自动折叠为一条，回溯时不出现连续重影。
+
+- 支持 Readline 与 Emacs 快捷键 `Ctrl+P` 上一条与 `Ctrl+N` 下一条，与方向键保持对称的边缘步进逻辑。
+- 交互式反向历史搜索：空闲态按 `Ctrl+R` 唤起搜索面板，搜索态连续按 `Ctrl+R` 循环切换更早匹配项。
+- 连续重复提交折叠：连续提交相同提示词自动折叠为一条，回溯时不出现连续重影。
 
 ## [2.7.0] - 2026-10-31
 
 ### Added
-- **全形态用户输入无损解析**：全面支持斜杠命令（`kind: 'command'` 还原完整 `/cmd args` 命令原型）、用户交互问答回复（`question-reply` / `user-question-reply`）及命令输入（`command-input`）。
-- **双数据源降级提取（Dual-Source Fallback）**：优先通过 `chat.order + chat.nodes.get(key)` 提取，自动回退到 `chat.legacy.nodes`，保障长会话与视口裁切场景下的历史完整性。
-- **权威序号 seq 优先强去重与乐观回声融合**：消灭网络回声重复项，支持本地即发入库与服务端真实节点的毫秒级校准融合。
+
+- 全形态用户输入无损解析：支持斜杠命令还原完整 `kind: 'command'` 的 `/cmd args` 命令原型，支持 `question-reply`、`user-question-reply` 问答回复与 `command-input` 命令输入。
+- 双数据源降级提取：优先经 `chat.order + chat.nodes.get(key)` 提取，自动回退到 `chat.legacy.nodes`，保障长会话与视口裁切场景下的历史完整性。
+- 权威序号 `seq` 优先强去重与乐观回声融合：消除网络回声重复项，本地即发入库与服务端真实节点按毫秒级校准融合。
 
 ### Fixed
-- **宿主 chatNode 包装层穿透**：修复宿主 Chat 节点数据包裹在 `node.data` 导致 `content` 读取失败被整条丢弃的严重缺陷。
-- **会话切换异步时序脱节**：重构会话切换与消息监听为正交响应式 Effect，异步消息到达即刻毫秒级入库与继承，消除 1.5 秒空窗期。
-- **零时间戳巡检重复泄漏**：修复 `time === 0` 的旧会话记录在周期性巡检中反复累加重复条目的问题。
 
-本仓库的版本历史。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
-
-## [Unreleased]
+- 修复宿主 Chat 节点数据包裹在 `node.data` 导致 `content` 读取失败被整条丢弃的问题。
+- 修复会话切换异步时序脱节：重建会话切换与消息监听为正交响应式 Effect，异步消息到达即刻入库与继承，消除 1.5 秒空窗期。
+- 修复 `time === 0` 的旧会话记录在周期性巡检中反复累加重复条目的问题。
 
 ## [2.6.2] - 2026-10-18
 
-### 双轴深度审查缺陷根治与全渠道提交捕获 (Deep Review Hardening & Precision Refactor)
+### Fixed
 
-- **新会话零污染保障 (Isolated New Sessions)**：
-  - 修复 `switchSession` 无脑继承旧版全局历史的边界缺陷，新创建的空白会话初始化保持绝对纯洁空白；
-  - 仅在会话在宿主侧已存在历史消息、且本地无记录时，才通过 `inheritLegacyGlobalIfEligible(true)` 触发旧版全局数据继承。
-- **重复提示词按真实时间戳共存 (Recurring Prompt Preservation)**：
-  - 重构 `sortAndClamp`，仅在同毫秒时间戳下的完全同一事件合并去重，允许用户在不同时间多次发送相同提示词（如多次“继续”、“/plan”），按时间戳各就其位；
-  - 修复排序比较器逻辑，严格先比较时间戳 `a.time - b.time`，同毫秒再比较 `(a.seq ?? 0) - (b.seq ?? 0)`，消灭时序倒挂。
-- **全渠道提交零延迟捕获 (Full-channel Ingestion)**：
-  - 协调器层监听 `phase`（`submitting`/`adjudicating`）跃迁并结合键盘监听，100% 覆盖鼠标点击右下角发送按钮、纯 Enter、Ctrl/Cmd+Enter，草稿发出瞬间无损入库。
-- **代码纯净化与坏味道消除 (Dead Code Purge & Hygiene)**：
-  - 物理删除孤儿死字段 `private seen: Set<number>`，清理双语字典未引用词条（`settings.group.input` / `copy`），删除临时路测脚本消灭 scope creep；
-  - 客户端 Bundle 体积保持在极致精简水平（gzip ~31.2 kB）。
-- **测试套件扩充**：
-  - 纯 Node 原生单测套件扩充至 **82 项 100% 全绿**（耗时仅 ~360ms）。
+- 修复 `switchSession` 无脑继承旧版全局历史的边界缺陷：新创建的空白会话保持空白，仅当会话在宿主侧已有历史消息且本地无记录时，才触发旧版全局数据继承。
+- 重构排序逻辑：仅同毫秒时间戳下的完全同一事件合并去重，允许用户在不同时间多次发送相同提示词并按时间戳各就其位；严格先比较时间戳再比较 `seq`，消灭时序倒挂。
+- 清理孤儿死字段 `private seen: Set<number>`、双语字典未引用词条与临时路测脚本。
+
+### Added
+
+- 全渠道提交零延迟捕获：协调器层监听 `submitting` 与 `adjudicating` 状态跃迁并结合键盘监听，覆盖鼠标点击发送按钮、纯 Enter、Ctrl/Cmd+Enter，草稿发出瞬间无损入库。
 
 ## [2.6.1] - 2026-10-18
 
-### 旧版全局存储无缝继承、周期性巡检兜底与时间戳单调时序架构 (Legacy Fallback, Interval Reconciliation & Strict Timestamp Ordering)
+### Added
 
-- **旧版全局存储平滑迁移继承 (Legacy Global Storage Fallback)**：
-  - 彻底攻克“升级后旧会话与旧版本历史看似全丢”的断层痛点；
-  - `switchSession` 在会话本地无历史时自动从旧版单点存储 `dsh-prompt-history.global` 无损继承数据并沉淀到该会话，老用户升级后历史记录零丢失。
-- **增量旧消息周期巡检补充机制 (1500ms Interval Reconciliation)**：
-  - 在 `InputHistory.tsx` 挂载 1500ms 轻量安全巡检定时器，与会话切换生命周期深度绑定；
-  - 自动巡检当前会话并增量调用 `supplementMessages`，彻底兜底捕获视口向上滚动新加载的旧轮次与异步就绪节点。
-- **严格单调时间戳升序排序中枢 (Strict Timestamp Monotonic Ordering)**：
-  - 提炼核心排序中枢 `sortAndClamp()`，无论消息来自主动即发即入库、旧版继承还是逆向滚动加载，全量按 `time`（毫秒）与 `seq` 严格单调升序排列（最早在前，最新在末尾）；
-  - 彻底根治旧消息前置加载导致的历史乱序与时间轴倒挂缺陷，保证上下键回溯时序 100% 精准。
-- **测试套件持续扩充**：
-  - 纯 Node 原生单测套件扩充至 **81 项 100% 全绿**（耗时仅 ~460ms）。
+- 旧版全局存储平滑迁移：会话本地无历史时自动从旧版单点存储 `dsh-prompt-history.global` 无损继承数据并沉淀到该会话，升级后历史记录不丢失。
+- 增量旧消息周期巡检：挂载 1500ms 轻量巡检定时器，与会话切换生命周期绑定，自动补充视口向上滚动新加载的旧轮次与异步就绪节点。
+
+### Changed
+
+- 提炼排序中枢 `sortAndClamp()`：无论消息来自即发即入库、旧版继承还是逆向滚动加载，全量按 `time` 与 `seq` 严格单调升序排列，最早在前最新在末尾，修复旧消息前置加载导致的历史乱序与时间轴倒挂。
 
 ## [2.6.0] - 2026-10-18
 
-### 长会话输入端无损持久化架构与设置卡精简 (Lossless Input-End Persistence & Settings Card Refinement)
+### Added
 
-- **长会话输入端本地无损记忆架构 (方案 B / Lossless Input-End Persistence)**：
-  - **彻底攻克长消息隐藏截断痛点**：深度剖析宿主事件窗口（Session Event Window / Loaded Window）机制，彻底解决长会话中上方消息被宿主未加载折叠导致上下键回溯触顶的缺陷；
-  - **即发即入库（Zero-latency Ingestion）**：在用户按下 Enter 提交草稿的瞬间无损入库，保留原始多行换行（`\n`）、代码缩进与全部标点，彻底免疫宿主消息窗口裁剪；
-  - **会话级隔离持久化存储**：`StorageDriver` 扩展 `scope` 命名空间，按 `dsh-prompt-history.session:<id>` 实现各会话历史完全隔离与持久化备份；
-  - **切会话/刷新毫秒级还原**：`PromptHistoryEngine` 增加 `sessionHistories` 内存缓存与 `switchSession` 记忆切换，切走暂存、切回秒级还原；
-  - **会话清理（Storage Hygiene）**：监听 `useSession((s) => s.removed)`，在会话归档删除时调用 `cleanupSession` 释放存储空间。
-- **配置卡 UI 深度精简 (Settings Card Refinement)**：
-  - 从设置页中彻底移除“配置健康与自愈维护”和“高级维护与配置提取”UI 区域，回归三大核心功能区（复制与剪贴板、历史回溯与快捷手势、历史搜索面板），界面更显克制纯粹；
-  - 彻底清理双语字典（`locales.ts`）与无用状态，客户端产物 Bundle 体积进一步精简（`lib/client.js` gzip 降至 ~30.2 kB）。
-- **自动化单测与真机 CDP 验收套件沉淀 (Test Expansion & CDP Acceptance)**：
-  - 纯 Node 原生单测套件扩充至 **78 项 100% 全绿**（耗时仅 ~600ms）；
-  - 沉淀 `scripts/test-live-e2e.mjs`，通过真实 Google Chrome CDP 在全新 DSH 隔离测试实例上完成 6 大测试项全真机全绿路测。
+- 长会话输入端本地无损记忆：提交草稿瞬间无损入库，保留原始多行换行、代码缩进与全部标点，不受宿主消息窗口裁剪影响。
+- 会话级隔离持久化存储：`StorageDriver` 扩展 `scope` 命名空间，按 `dsh-prompt-history.session:<id>` 实现各会话历史完全隔离与持久化备份。
+- 会话切换与刷新毫秒级还原：`PromptHistoryEngine` 增加 `sessionHistories` 内存缓存与 `switchSession` 记忆切换，切走暂存、切回秒级还原。
+- 会话清理：监听 `useSession` 的 `removed` 状态，会话归档删除时调用 `cleanupSession` 释放存储空间。
+
+### Removed
+
+- 从设置页中移除「配置健康与自愈维护」和「高级维护与配置提取」两个 UI 区域，设置页回归复制剪贴板、历史回溯与快捷手势、历史搜索面板三大核心功能区。
+- 清理双语字典中不再使用的词条与无用状态，客户端产物体积进一步精简。
 
 ## [2.5.1] - 2026-10-17
 
-### 深度适配 DSH 0.2.1-rc.2 与废弃包彻底拔除 (Purge Invariants & engines.dsh Alignment)
+### Removed
 
-- **移除已退役的 invariant 诊断机制 (Drop Obsolete Invariants)**：
-  - 彻底对齐 DSH 0.2.1-rc.2 发版契约（官方全面下架运行时 invariant 插件及各包的 `./invariant` 导出），删除 `src/invariant.ts`；
-  - 从 `package.json` 的 `exports` 中移除 `./invariant`，从 `files` 白名单中移除 `lib/invariant.js`，并在 `peerDependencies` 与 `devDependencies` 中彻底清除 `@deepseek-ai/dsh-invariants`；
-  - 同步简化 `tsdown.config.ts` 打包入口，消灭所有孤儿产物与旧声明。
-- **官方推荐 engines.dsh 字段规范支持 (Engines DSH Range Support)**：
-  - 在 `package.json` 的 `engines` 中正式添加 `"dsh": ">=0.2.0-rc.2"`，使 0.2.1-rc.2 的新发现中心和插件管理器优先判定兼容；
-  - 将所有 `@deepseek-ai/dsh-*` peer 依赖范围拓宽为 `">=0.2.0-rc.2"`，完美支持 0.2.0-rc.2 与最新 0.2.1-rc.2 全系无缝安装。
+- 移除已退役的 invariant 诊断机制：删除 `src/invariant.ts`，从 `exports` 移除 `./invariant`，从发布白名单移除 `lib/invariant.js`，清除 `@deepseek-ai/dsh-invariants` 依赖，简化打包入口。
+
+### Changed
+
+- `package.json` 的 `engines` 添加 `"dsh": ">=0.2.0-rc.2"`，让 0.2.1-rc.2 宿主的新发现中心和插件管理器优先判定兼容。
+- 所有 `@deepseek-ai/dsh-*` peer 依赖范围拓宽为 `">=0.2.0-rc.2"`，支持 0.2.0-rc.2 与 0.2.1-rc.2 全系安装。
 
 ## [2.5.0] - 2026-10-17
 
-### 架构演进与现代契约对齐 (Modern Architecture & Pure Contracts)
+### Removed
 
-- **彻底斩断历史包袱 (Drop Legacy Compatibility)**：
-  - 全面废弃 ≤0.1.1、0.1.2-rc 及 2.0.x 旧版兼容分支，彻底清除 `legacy.nodes`、`anchorSeq`、`data.seq`、`data.time`、`data.content` 等多代容错探测代码；
-  - 会话节点解析器（`src/client/nodes.ts`）直接对齐 DSH 0.2.0-rc.2 `records.d.ts` 的 `UserMessageNode` 与 `SteeringMessageNode` 官方权威契约，直接提取 `seq`、`time` 与 `content` 纯文本，大幅精简 AST 解析链路并提升运行性能。
-- **现代会话快照直连 (Official Chat Snapshot Direct Access)**：
-  - 彻底消灭 `InputHistory.tsx` 中的 `(props as any).useChat` 历史幽灵探针与 `rawNodesOf` 四阶容错探测；
-  - 直接通过标准会话 Props `useConversation((c) => c?.views.get('chat'))` 消费官方 `ChatSnapshot`（`order` 键序列 + `nodes.get` 强类型存取），实现零 hack 纯净数据流通。
-- **客户端显式服务依赖双导出 (Explicit Client Service Exports)**：
-  - `src/client/index.ts` 补齐 `export default { apply, inject }` 与具名 `export const inject` 严格双导出，彻底杜绝隔离新实例冷启动时因隐式依赖导致的未就绪报错（`web boot: 1 entry did not activate`）。
-- **单元测试扩充与独立隔离实例真机真值闭环 (Test Expansion & Isolated Acceptance)**：
-  - 新增 `test/nodes.test.ts` 纯 Node 原生单测，全仓原生单测套件扩充至 **74 项 100% 全绿**（耗时仅 ~680ms）；
-  - 搭建独立隔离 profile `dsh-ph-isolated-test`（高位端口 3899，mklink /J 直通联接，绝对不触碰当前 3080 实例），双真源验证 `__DSH_BOOT__` 模块清单注入、`client.js` HTTP 200 分发及现代 `views.get` 源码特征，验证通过后现场自动清理。
+- 移除 ≤0.1.1、0.1.2-rc 及 2.0.x 旧版兼容分支，清除 `legacy.nodes`、`anchorSeq`、`data.seq`、`data.time`、`data.content` 等多代容错探测代码。
+
+### Changed
+
+- 会话节点解析器直接对齐 DSH 0.2.0-rc.2 `records.d.ts` 的 `UserMessageNode` 与 `SteeringMessageNode` 官方契约，直接提取 `seq`、`time` 与 `content` 纯文本，精简 AST 解析链路并提升性能。
+- 移除 `InputHistory.tsx` 中的 `(props as any).useChat` 探针与 `rawNodesOf` 四阶容错探测，改经标准会话 Props `useConversation` 消费官方 `ChatSnapshot`，`order` 键序列加 `nodes.get` 强类型存取。
+- `src/client/index.ts` 补齐 `export default { apply, inject }` 与具名 `export const inject` 双导出，修复隔离新实例冷启动时因隐式依赖导致的未就绪报错。
 
 ## [2.4.1] - 2026-10-10
 
-### 修复与宿主契约适配
+### Fixed
 
-- **插件元信息图标体积压制 (Host Metadata Compatibility)**：
-  - 使用高保真 Lanczos 抗锯齿重采样将 `assets/icon.png` 优化为 256×256 视网膜高清规格，文件体积由 987 KiB 缩减 92% 至 77.63 KiB；
-  - 严格满足 DSH 宿主对插件包元信息硬性施加的 256 KiB 上限约束，彻底根治宿主启动与扫描插件时抛出 `Plugin metadata for @wenaixi/dsh-prompt-history: Error: ... icon exceeds 256 KiB` 异常。
+- 插件图标按高保真 Lanczos 抗锯齿重采样压缩为 256×256，体积从 987 KiB 降至 77.63 KiB，满足宿主对插件元信息 256 KiB 上限的要求，修复启动扫描插件时抛出 `icon exceeds 256 KiB` 异常的问题。
 
 ## [2.4.0] - 2026-10-10
 
-### 架构与核心演进
+### Added
 
-- **全生命周期可逆化 (Lifecycle Reversibility)**：
-  - 针对宿主 `inputTriggers` 服务猴补引入 `Symbol.for('dsh.ph.origTrack')` 原方法固化与 `WeakRef` 会话追踪集合，在插件卸载或热重载时不仅恢复全局 `sessionOf`，同时深度复原所有活跃会话的原 `track` 方法，彻底根治闭包与内存常驻泄漏；
-  - 样式标签注入与 `ctx.slots.inject` 统一包裹进 `ctx.effect` 响应式副作用通道，插件禁用/卸载时自动从 `document.head` 移除 `<style>` 标签与插槽监听器，100% 达成 `dsh-plugin-dev` 可逆副作用规范。
-- **浮层深模块化与关注点解耦 (Depth & Locality)**：
-  - 抽离独立的 `HistoryOverlayController` 深模块（`src/client/history-overlay.ts`），将 180+ 行命令式 DOM 浮层逻辑全面封装，彻底消灭 5 个模块级全局指针与双向状态穿透；
-  - 提炼 `splitHighlighted` 文本切片算法、`formatPreview` 宽屏多行文本截断算法与 `calculatePanelTop` 视口避让坐标算法为高纯度无副作用函数；
-  - 新增 `test/history-overlay.test.ts` 12 项纯 Node 离线单测，全仓原生单测跃升至 **68 项全绿**。
-- **输入外壳 Coordinator 模式重构**：
-  - `src/client/InputHistory.tsx` 单体解耦为 3 个正交的轻量自定义 Hooks：
-    - `useSelectionCopyToolbar`：划词复制/引用工具栏；
-    - `useRightClickPaste`：终端风格右键直接粘贴；
-    - `usePromptHistoryHotkeys`：捕获期快捷键调度与状态机动作派发；
-  - 主组件精简至 ~90 行，消除发散式变化坏味道，实现零运行时额外开销与零行为差异。
-- **配置域与控制器严格缝隙 (Seam)**：
-  - 维持 `prefs.ts` 纯领域模型与 `card-controller.ts` UI 插槽控制器的清晰分层，统一复用并重导出单一真源类型 `PrefField`。
+- 前导空格隐私提示词：以空格开头的提示词不入库不持久化，对齐 Bash `ignorespace` 规范。
+- 工业级配置健康自愈系统：提供 `extractValidConfig` 容灾提取器与 `analyzeConfigHealth` 诊断器，配置残缺、类型错误或混入未知脏键时提取完好字段并自动补齐默认值；`generateHealingOps` 精准清除历史废弃脏键并生成标准字段，支持一键自愈。
+- 设置卡重构为四大功能区：复制剪贴板、历史手势、历史搜索、健康维护，支持实时健康徽标。
+- 编辑器换行模型加固：适配 Lexical 编辑器的兄弟段落 `<p>` 换行与软换行 `<br>`，修复多行文本首末行误吞。
 
-### 特性与健康自愈
+### Changed
 
-- **前导空格隐私提示词 (ignoreLeadingSpace)**：以空格开头的提示词（对齐 Bash ignorespace 工业规范）阅后即焚，不持久化入会话历史环。
-- **工业级配置健康自愈与消毒系统**：
-  - 提供 `extractValidConfig` 容灾提取器与 `analyzeConfigHealth` 诊断器，在配置残缺、类型错误或混入未知废弃脏键时，毫秒级榨取完好字段并自动补齐默认值；
-  - 针对宿主 profile 深比较及 patch 约束实现 `generateHealingOps`，精准拔除历史废弃脏键（unset）并全量生成 9 个标准字段（set），支持一键自愈；
-  - 设置卡重构为人性化四大功能区划分（复制剪贴板、历史手势、历史搜索、健康维护），支持实时健康徽标。
-- **编辑器换行模型加固**：
-  - 精细化适配 Lexical 编辑器的兄弟段落 `<p>` 换行与软换行 `<br>`，杜绝多行文本首末行误吞。
+- 全生命周期可逆化：宿主 `inputTriggers` 服务注入 `Symbol.for('dsh.ph.origTrack')` 原方法固化加 `WeakRef` 会话追踪集合，插件卸载或热重载时恢复全局 `sessionOf` 与所有活跃会话的原 `track` 方法，修复闭包与内存常驻泄漏。
+- 样式标签注入与 `ctx.slots.inject` 统一包裹进 `ctx.effect` 响应式副作用通道，插件禁用或卸载时自动从 `document.head` 移除样式标签与插槽监听器。
+- 浮层深模块化：抽离 `HistoryOverlayController`，封装 180 余行命令式 DOM 浮层逻辑，消灭 5 个模块级全局指针与双向状态穿透；提炼 `splitHighlighted` 文本切片、`formatPreview` 多行截断与 `calculatePanelTop` 视口避让为无副作用纯函数。
+- 输入外壳重构：`InputHistory.tsx` 解耦为 `useSelectionCopyToolbar`、`useRightClickPaste`、`usePromptHistoryHotkeys` 三个正交自定义 Hooks，主组件精简至约 90 行。
+- 配置域与控制器清晰分层：维持 `prefs.ts` 纯领域模型与 `card-controller.ts` UI 插槽控制器分层，复用并重导出单一真源类型 `PrefField`。
 
 ## [2.2.2] - 2026-10-06
 
-### 修复
+### Fixed
 
-- **解除前导命令认领态下行内斜杠技能补全压制**：`/plan` 这类带参命令在按空格后被宿主认领，输入框进入 `claimed` 阶段，其底层 `detectTrigger` 有一行硬编码 `if (guard.tier === "claimed") continue`，把后续所有斜杠一律当成命令参数文本，导致 `/plan /dsh-plugin-dev`、`/plan /browser-harness` 敲不出任何补全（主症状）。插件注入 `inputTriggers` 服务并包装每会话控制器的 `track`：只要光标位于「段前有正文的行内斜杠」，就把守卫降级回 `plain` 让宿主补全管线照常跑。判定逻辑收敛在 `claim-guard.ts` 的 `hasInlineSlash`（纯函数，5 项单测），边界语义：
-  - `/plan /ds`、`/plan /dsh-plugin-dev` 命中 → 正常弹补全；
-  - `/plan`、`/plan `、`/plan off` 不命中 → 认领令牌与纯文本参数不受影响；
-  - 行内斜杠是否是真触发符仍由宿主 `boundaryOk` 裁决，URL、`//` 照旧被抑制。
-- **建议菜单让位选择器增强**：`OPEN_MENU` 扩为 `[role="listbox"], [data-trigger-menu]`，在宿主菜单骨架屏尚未挂载 listbox 的加载窗口期同样让位，消除按键抢占。
-
-### 验收
-
-隔离实例 `prompt-history-e2e-v3` + 本机 Chrome/CDP，12 项全绿（主症状、六个边界、前导技能与命令菜单未回归、URL 不误触发、双击 Esc 开面板与清空、方向键历史往返、无控制台错误），并在修复前的 `34a60e5` 源码上做对照确认症状可复现（焐热命令目录后 `/plan /ds` 的 listbox 为 0）。
+- 解除前导命令认领态下对行内斜杠技能补全的压制：`/plan` 这类带参命令按空格后被宿主认领，输入框进入 `claimed` 阶段后后续斜杠一律被当作命令参数文本，`/plan /dsh-plugin-dev` 之类的行内斜杠敲不出补全；插件包装每会话控制器的 `track`，光标位于段前有正文的行内斜杠时把守卫降级回 `plain`，判定收敛在 `claim-guard.ts` 的 `hasInlineSlash`。
+- 建议菜单让位选择器增强：`OPEN_MENU` 扩为 `[role="listbox"], [data-trigger-menu]`，宿主菜单骨架屏未挂载 listbox 的加载窗口期同样让位，消除按键抢占。
 
 ## [2.2.1] - 2026-10-06
 
-### 修复
+### Fixed
 
-- **双击 Esc 关闭时 Esc 让位宿主**：`doubleEsc=false` 时连按 Esc 不再被插件消费，宿主自行关闭其浮层/菜单。
-- **宽屏历史面板右侧完整预览**：窗口 ≥1000px 时在列表右侧显示高亮条目的完整内容（最多 6 行，超出显示 `… +N more lines`），对齐 Claude Code `HistorySearchDialog` 的 preview。
+- 双击 Esc 关闭时让位宿主：`doubleEsc=false` 时连按 Esc 不再被插件消费，宿主自行关闭其浮层或菜单。
+- 宽屏历史面板右侧完整预览：窗口 ≥1000px 时在列表右侧显示高亮条目的完整内容，最多 6 行，超出显示省略计数。
 
 ## [2.2.0] - 2026-10-06
 
-### 变更
+### Removed
 
-- **移除 Ctrl+R 手势**：历史列表入口仅剩「输入框为空时双击 Esc」；Ctrl+R 交还浏览器（恢复原生刷新）。删除 `historyGesture` 字段与相关文案。**已有用户升级需在 `cordis.patch.yml` 里删除 `historyGesture` 行**（同 tocVisible 先例，否则配置写入会被宿主以未知键拒绝）。
-- **双击 Esc 独立开关（默认开）**：新增 `doubleEsc`。开：非空草稿双击清空并存入历史、空草稿双击开历史列表；关：Esc 完全交还宿主。
-- **历史面板对齐 Claude Code**：行首相对时间（`relativeTime`，默认开，条目带源事件时间戳）；过滤支持包含 + 字符子序列模糊（`fuzzyMatch`，默认开，复刻 `isSubsequence`，exact 在前 fuzzy 在后）；高亮两端夹取不环绕（复刻 FuzzyPicker `clamp`）；宽窗口（≥1000px）右侧显示选中条目完整内容预览；列表最新在顶。
-- **历史条数上限可调**：新增 `maxHistoryItems`（默认 100，档位 50/100/200/500/1000），历史环与列表统一按此裁剪。
+- 移除 Ctrl+R 手势：历史列表入口仅剩「输入框为空时双击 Esc」，Ctrl+R 交还浏览器恢复原生刷新；删除 `historyGesture` 字段与相关文案。已有用户升级需在 `cordis.patch.yml` 里删除 `historyGesture` 行，否则配置写入会被宿主以未知键拒绝。
 
-### 修复
+### Added
 
+- 双击 Esc 独立开关 `doubleEsc`，默认开：非空草稿双击清空并存入历史，空草稿双击打开历史列表；关时 Esc 完全交还宿主。
+- 历史条数上限可调：新增 `maxHistoryItems`，默认 100，档位 50 / 100 / 200 / 500 / 1000，历史环与列表统一按此裁剪。
+
+### Changed
+
+- 历史面板对齐 Claude Code：行首相对时间，过滤支持包含与子序列模糊匹配，高亮两端夹取不环绕，宽窗口右侧显示选中条目完整内容预览，列表最新在顶。
 - 历史条目从纯字符串改为 `{ text, time }`：跨会话 localStorage 环保留时间戳，旧纯字符串条目兼容显示为无相对时间。
-- 相对时间格式化为 `5m / 3h / 2d` 短格式（Claude Code `formatRelativeTimeAgo` 近似）。
+- 相对时间格式化为 `5m / 3h / 2d` 短格式。
 
 ## [2.1.0] - 2026-10-06
 
-### 变更
+### Changed
 
-- **复刻 Claude Code 的上下键历史与双击 Esc 语义**：↑/↓ 从 bash 前缀搜索改为顺序浏览（↑ 从最新一条逐条回退、到底不环绕；↑ 回填光标签行首、↓/恢复草稿光标行尾；多行输入只在光标处于首/末行时才接管方向键，行号按 Lexical 的 `<br>` 结构计算）。双击 Esc 改为草稿非空时第一次提示、第二次存入历史后清空输入框（空草稿仍是打开历史列表）。
-- **去掉设置保存按钮，改动自动保存**：配置卡不再使用官方 `SettingsForm` 外壳与 staged 草稿，开关、单选与「恢复默认」点击即写入宿主；失败时显示提示并回落到宿主真值。删除 `save/saving/conflict/draftHint` 文案键。
-- **README 精简为双语文档**：主 README 改为英文，新增 `README.zh.md` 中文版；移除 `README.en.md` / `README.es.md` / `README.pt.md` 并同步 `package.json` 的 `files` 清单。
+- 复刻 Claude Code 的上下键历史与双击 Esc 语义：上键从最新一条逐条回退、到底不环绕，下键恢复草稿，光标回填行首与行尾；多行输入只在光标处于首或末行时才接管方向键，行号按 Lexical 的 `<br>` 结构计算。双击 Esc 改为草稿非空时第一次提示、第二次存入历史后清空输入框。
+- 去掉设置保存按钮，改动自动保存：配置卡不再使用官方 `SettingsForm` 外壳与 staged 草稿，开关、单选与「恢复默认」点击即写入宿主；失败时显示提示并回落到宿主真值；删除 `save`、`saving`、`conflict`、`draftHint` 文案键。
+- README 精简为双语文档：主 README 改为英文，新增 `README.zh.md` 中文版；移除 `README.en.md`、`README.es.md`、`README.pt.md` 并同步 `package.json` 的 `files` 清单。
 
-### 修复
+### Fixed
 
-- **Lexical 多行输入的首/末行判定**：Lexical 的换行是 `<br>` 而非 `\n`，旧实现按换行符判断会把多行草稿误判成单行，导致光标停在第二行按 ↑ 也直接进历史。改为按「host 开头到光标锚点的 `<br>` 数」计算行号；空输入框的占位 `<br>` 不计为第二行。
+- 修正 Lexical 多行输入的首末行判定：Lexical 的换行是 `<br>` 而非 `\n`，旧实现按换行符判断会把多行草稿误判成单行，光标停在第二行按上键也直接进历史；改为按 host 开头到光标锚点的 `<br>` 数计算行号，空输入框的占位 `<br>` 不计为第二行。
 
 ## [2.0.2] - 2026-10-06
 
-### 修复
+### Changed
 
-- **设置界面迁移到官方 SettingsForm 体系**：`plugins.bundle.config` 配置卡改用官方 `SettingsForm` 外壳（不可用提示、只读横幅、保存失败提示、Save/Saving、离开即丢弃草稿），保存语义改为 staged 草稿 + 一次保存。新增 `SettingsCardController`（仿官方 `dsh-client-ui-settings-subagent` 控制器）：用快照 `revision` 做冲突栅栏、保存后回读逐字段比对确认落盘、代际计数抑制卸载后的迟到回执。文案键对齐官方模板句式。
-- **修复 2.0.1 客户端从未加载成功**：tsdown 产物注册 id 仍是旧名 `dsh-prompt-history`，与改名后的包名 `@wenaixi/dsh-prompt-history` 不一致，client-modules 报 `loaded without registering`，整条 client bundle 无法激活。产物 id 与 `plugins.bundle.config` 插槽 key 一并修正为包名（plugin-manager 按 `entry.options.key` 与 `pkg.name` 比对决定是否渲染配置区）。
-- **设置写入文档对齐**：`cordis.patch.yml` 与 schema 默认值逐字段一致（config-editor 深比较判定）。
+- 设置界面迁移到官方 `SettingsForm` 体系：`plugins.bundle.config` 配置卡改用官方外壳，含不可用提示、只读横幅、保存失败提示与草稿管理，保存语义改为 staged 草稿加一次保存。新增 `SettingsCardController`：用快照 `revision` 做冲突栅栏，保存后回读逐字段比对确认落盘。
+
+### Fixed
+
+- 修复 2.0.1 客户端从未加载成功：tsdown 产物注册 id 仍是旧名 `dsh-prompt-history`，与改名后的包名 `@wenaixi/dsh-prompt-history` 不一致，client-modules 报 `loaded without registering` 导致整条 client bundle 无法激活；产物 id 与配置插槽 key 一并修正为包名。
+- `cordis.patch.yml` 与 schema 默认值逐字段对齐，消除 config-editor 深比较判定差异。
+
+[Unreleased]: https://github.com/Wenaixi/dsh-prompt-history/compare/v2.7.1...HEAD
+[2.7.1]: https://github.com/Wenaixi/dsh-prompt-history/compare/v2.7.0...v2.7.1
+[2.7.0]: https://github.com/Wenaixi/dsh-prompt-history/compare/v2.6.2...v2.7.0
+[2.6.2]: https://github.com/Wenaixi/dsh-prompt-history/compare/v2.6.1...v2.6.2
+[2.6.1]: https://github.com/Wenaixi/dsh-prompt-history/compare/v2.6.0...v2.6.1
+[2.6.0]: https://github.com/Wenaixi/dsh-prompt-history/compare/v2.5.1...v2.6.0
+[2.5.1]: https://github.com/Wenaixi/dsh-prompt-history/compare/v2.5.0...v2.5.1
+[2.5.0]: https://github.com/Wenaixi/dsh-prompt-history/compare/v2.4.1...v2.5.0
+[2.4.1]: https://github.com/Wenaixi/dsh-prompt-history/compare/v2.4.0...v2.4.1
+[2.4.0]: https://github.com/Wenaixi/dsh-prompt-history/compare/v2.2.2...v2.4.0
+[2.2.2]: https://github.com/Wenaixi/dsh-prompt-history/compare/v2.2.1...v2.2.2
+[2.2.1]: https://github.com/Wenaixi/dsh-prompt-history/compare/v2.2.0...v2.2.1
+[2.2.0]: https://github.com/Wenaixi/dsh-prompt-history/compare/v2.1.0...v2.2.0
+[2.1.0]: https://github.com/Wenaixi/dsh-prompt-history/compare/v2.0.2...v2.1.0
+[2.0.2]: https://github.com/Wenaixi/dsh-prompt-history/releases/tag/v2.0.2
