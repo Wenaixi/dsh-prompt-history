@@ -18,7 +18,7 @@ import {
   HistoryOverlayController,
   type HistoryPanelView,
 } from './history-overlay.ts'
-import { relativeAgeOf } from './history-model.ts'
+import { relativeAgeText } from './history-model.ts'
 import { T } from './i18n.ts'
 import { promptMessage, type PromptMessage } from './nodes.ts'
 import {
@@ -28,15 +28,7 @@ import {
 import {
   PromptHistoryEngine, type EngineAction, type SearchSnapshot,
 } from './history-engine.ts'
-
-/** 相对时间文案：短格式（5m / 3h / 2d），对齐终端紧凑风格。 */
-function relativeAgeText(time: number, now: number): string | null {
-  const age = relativeAgeOf(time, now)
-  if (age === null) return null
-  if (age.unit === 'now') return T('history.relative.now')
-  const unit = age.unit === 'min' ? 'm' : age.unit === 'hour' ? 'h' : 'd'
-  return `${age.value}${unit}`
-}
+import { relativeAgeText } from './history-model.ts'
 
 /** Full props of the input-history entry: framework standard kit + owner share. */
 export type InputHistoryProps = PropsRuntime<'conversation.input.right'>
@@ -371,7 +363,7 @@ export function InputHistory(props: InputHistoryProps): null {
       {
         texts: entries.map((entry) => entry?.text ?? ''),
         ages: prefs.relativeTime
-          ? entries.map((entry) => relativeAgeText(entry?.time ?? 0, now))
+          ? entries.map((entry) => relativeAgeText(entry?.time ?? 0, now, T))
           : entries.map(() => null),
         highlight: snapshot.highlight,
         query: snapshot.query,

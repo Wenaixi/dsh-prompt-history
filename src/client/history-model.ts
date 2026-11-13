@@ -141,6 +141,41 @@ export function relativeAgeOf(ts: number, now: number): RelativeAge | null {
 }
 
 /**
+ * 把时间戳渲染成给人看的相对时间文案。
+ *
+ * 单位后缀必须走注入的翻译函数，否则中文界面会显示 "5m" 这类终端风格缩写，
+ * 而 locales.ts 里备好的「分钟前 / 小时前 / 天前」永远不生效。
+ *
+ * @param ts - 条目时间戳（Unix epoch ms）。
+ * @param now - 当前时间戳（Unix epoch ms）。
+ * @param translate - 取本地化文案的函数；返回 key 本身表示该词条缺失。
+ * @returns 渲染好的文案；30 天以上或时间戳无效时返回 null。
+ */
+export function relativeAgeText(
+  ts: number,
+  now: number,
+  translate: (key: string) => string
+): string | null {
+  const age = relativeAgeOf(ts, now)
+  if (age === null) return null
+  if (age.unit === 'now') {
+    const nowText = translate('history.relative.now')
+    return nowText === 'history.relative.now' ? 'now' : nowText
+  }
+  const suffixKey =
+    age.unit === 'min' ? 'history.relative.m'
+      : age.unit === 'hour' ? 'history.relative.h'
+        : 'history.relative.d'
+  const suffix = translate(suffixKey)
+  // 词条缺失时回退到终端紧凑后缀（5m / 3h / 2d）
+  if (suffix === suffixKey) {
+    const compact = age.unit === 'min' ? 'm' : age.unit === 'hour' ? 'h' : 'd'
+    return `${age.value}${compact}`
+  }
+  return `${age.value}${suffix}`
+}
+
+/**
  * 已浏览 step 条时对应的历史下标。
  *
  * 历史数组按时间从旧到新存放，而浏览从最新一条开始，所以两者方向相反：
