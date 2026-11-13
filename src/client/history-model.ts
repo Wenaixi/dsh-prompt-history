@@ -6,6 +6,8 @@
  * 按键接线在 InputHistory.tsx，三者只共享本文件的判定。
  */
 
+import type { PromptHistoryKey } from './locales.ts'
+
 /** 双击手势的时间窗（毫秒），取自 Claude Code 的 useDoublePress 800。 */
 export const DOUBLE_ESCAPE_MS = 800
 
@@ -154,7 +156,7 @@ export function relativeAgeOf(ts: number, now: number): RelativeAge | null {
 export function relativeAgeText(
   ts: number,
   now: number,
-  translate: (key: string) => string
+  translate: (key: PromptHistoryKey) => string
 ): string | null {
   const age = relativeAgeOf(ts, now)
   if (age === null) return null
@@ -162,7 +164,7 @@ export function relativeAgeText(
     const nowText = translate('history.relative.now')
     return nowText === 'history.relative.now' ? 'now' : nowText
   }
-  const suffixKey =
+  const suffixKey: PromptHistoryKey =
     age.unit === 'min' ? 'history.relative.m'
       : age.unit === 'hour' ? 'history.relative.h'
         : 'history.relative.d'

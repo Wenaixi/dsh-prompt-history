@@ -4,13 +4,6 @@
  * Vanilla DOM (no React) so both can be driven from event handlers.
  */
 import { T } from './i18n.ts'
-import {
-  HistoryOverlayController,
-  type HistoryPanelView,
-  type HistoryPanelRefs,
-} from './history-overlay.ts'
-
-export type { HistoryPanelView, HistoryPanelRefs }
 
 /** Copy the current document selection via execCommand, clipboard API fallback. */
 function copyDocumentSelection(): boolean {
@@ -121,17 +114,6 @@ export function showSelectionToolbar(rect: DOMRect, onQuote?: () => void): void 
 }
 
 // ---- history list panel: delegate to HistoryOverlayController ----
-
-const defaultOverlay = new HistoryOverlayController()
-
-/** Hide the history list panel (idempotent). */
-export function hideHistoryPanel(): void {
-  defaultOverlay.hide()
-}
-
-/**
- * Open or update the history list above the composer card.
- */
-export function showHistoryPanel(view: HistoryPanelView, refs: HistoryPanelRefs): void {
-  defaultOverlay.render(view, refs)
-}
+// 面板渲染由 history-overlay 的实例负责，调用点直接持有控制器；
+// 这里不维护模块级默认单例（曾导出 showHistoryPanel/hideHistoryPanel，
+// 但全仓无消费者，且 import 时即构造实例带来无谓副作用）。

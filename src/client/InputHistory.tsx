@@ -28,7 +28,6 @@ import {
 import {
   PromptHistoryEngine, type EngineAction, type SearchSnapshot,
 } from './history-engine.ts'
-import { relativeAgeText } from './history-model.ts'
 
 /** Full props of the input-history entry: framework standard kit + owner share. */
 export type InputHistoryProps = PropsRuntime<'conversation.input.right'>

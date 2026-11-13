@@ -182,9 +182,6 @@ export interface ExtractedConfigResult {
   repairs: string[]
 }
 
-/** 9 个标准字段名作为集合，用于极速白名单与诊断校验。 */
-export const KNOWN_FIELDS: readonly PrefField[] = FIELDS
-
 /**
  * 诊断一份配置对象的健康度。
  *
