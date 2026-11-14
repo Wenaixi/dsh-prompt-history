@@ -6,6 +6,22 @@
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-11-14
+
+### Added
+
+- 设置面板顶部新增预设档位：极简 / 标准 / 全功能 / 自定义。点选后一次性写入所有相关字段。「自定义」段常驻，当前组合不匹配任何预设时高亮它。
+- 少用的「忽略空格开头的输入」收进可折叠的高级设置区。
+
+### Changed
+
+- 设置分组按使用意图重排：找回之前说过的话 / 快速翻找 / 复制与粘贴。原分组按字段类型划分。
+
+### Fixed
+
+- 相对时间的中文显示为 `5m` 而非「5分钟前」。`relativeAgeText` 原先在 `InputHistory.tsx` 内拼硬编码的 `m/h/d` 后缀，`locales.ts` 里备好的四条词条从未被调用。现下沉为 `history-model.ts` 的纯函数并注入翻译函数，词条缺失时仍回退到紧凑后缀。
+- 删除零消费的死导出：`feedback.ts` 的 `defaultOverlay` 模块级单例与 `showHistoryPanel` / `hideHistoryPanel` 包装、`prefs.ts` 的 `KNOWN_FIELDS`。
+
 ## [2.7.1] - 2026-11-04
 
 ### Fixed
