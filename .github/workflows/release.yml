@@ -36,9 +36,12 @@ jobs:
             echo "::error::缺少 NPM_TOKEN secret，无法发布" >&2
             exit 1
           fi
-          # 用 npm 而非 pnpm：npm 认 .npmrc 里的 _authToken；pnpm 在 OIDC 可用时
-          # 会优先走 token exchange，失败后不回落。
-          echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > "$HOME/.npmrc"
+          # setup-node 会把 NPM_CONFIG_USERCONFIG 指向它自己创建的临时 .npmrc，
+          # npm 实际读的是那个文件。只写 $HOME/.npmrc 不会生效——这正是本仓
+          # 之前一直 404 的原因（ponytail 写两个路径所以成功）。
+          NPMRC="${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
+          printf '//registry.npmjs.org/:_authToken=%s\n' "$NPM_TOKEN" > "$NPMRC"
+          printf '//registry.npmjs.org/:_authToken=%s\n' "$NPM_TOKEN" > "$HOME/.npmrc"
           npm publish --access public --registry=https://registry.npmjs.org/
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
