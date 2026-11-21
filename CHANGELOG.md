@@ -6,6 +6,14 @@
 
 ## [Unreleased]
 
+## [2.8.2] - 2026-11-21
+
+### Fixed
+
+- 发布链路：workflow 只写 `$HOME/.npmrc`，而 setup-node 把 npm 实际读取的
+  路径放在 `NPM_CONFIG_USERCONFIG`，于是 token 从未生效、每次发布都 404。
+  现在两个路径都写。
+
 ## [2.8.1] - 2026-11-21
 
 ### Fixed
