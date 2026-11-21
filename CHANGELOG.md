@@ -6,6 +6,38 @@
 
 ## [Unreleased]
 
+## [2.8.1] - 2026-11-21
+
+### Fixed
+
+- **历史记录会写出错误的斜杠命令**：`InputHistory.tsx` 三处读取
+  `[data-composer-chip]` 的 `data-composer-chip` 属性当命令名。那是**引用 chip 的
+  来源名**（宿主 `chip-node.tsx` 写的是 `insert.source`），命令 chip 用的是另一个
+  属性 `data-composer-command`。用户在草稿里插过文件引用 chip 后按 Enter，
+  历史会被记成 `/reference <正文>`；该条被上下键回填并回车时会真的发出一个
+  不存在的 `/reference` 命令——属于把用户输入改写成另一条命令。
+  根因是多余的二次拼接：`draft` 是 `clipboardText`，宿主已让 chip 展开为
+  其剪贴板投影（`projection.ts` 注释「chips expand to their clipboard projection」），
+  命令原型本来就在里面。三处拼接全部删除，直接用 `live.draft`。
+
+### Removed
+
+- `patched` WeakSet：只有声明没有引用（幂等实际由 `ORIG_TRACK` 符号承担）。
+- 13 组从未被任何组件使用的样式类（`dsh-ph-health-*` 对应健康度面板、
+  `dsh-ph-import-box`/`dsh-ph-textarea` 对应导入框、`dsh-ph-heal-btn` 对应
+  自愈按钮、`dsh-ph-adv-pane/toggle/actions/container` 对应折叠面板）。
+  健康度诊断与导入导出在 UI 上本就不可达，样式是残留。
+  保留 `dsh-ph-advanced`/`advancedSummary`——它们在 `SettingsCard` 的
+  `details` 元素上真实使用。
+
+### Test
+
+- 新增 `test/host-context.test.ts`：用真实 cordis `Context` 验证
+  `ctx.inject(['settings'])` 的服务就位/缺失两种状态、effect disposer 真实执行、
+  以及 Config 九个字段全部 volatile。其中「服务缺失」一条断言 `fiber.state === 0`
+  与 `getEffects().length === 0`，是可失败的（此前写成 `assert.ok(true)` 属
+  结构性不可失败）。
+
 ## [2.8.0] - 2026-11-14
 
 ### Added
