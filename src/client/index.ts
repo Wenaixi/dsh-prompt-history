@@ -61,24 +61,6 @@ const SETTINGS_CSS = [
   '.dsh-ph-option:disabled{opacity:.5;cursor:default;}',
   '.dsh-ph-optionTitle{font-size:13.5px;font-weight:500;line-height:20px;}',
   '.dsh-ph-optionHint{font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary);}',
-  '.dsh-ph-health-row{margin:10px 0 6px;}',
-  '.dsh-ph-health-box{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:var(--dsw-radius-md);border:.5px solid var(--dsw-alias-border-l3);background:var(--dsw-alias-bg-layer-1);}',
-  '.dsh-ph-health-box.isHealthy{border-color:var(--dsw-alias-state-success-primary);}',
-  '.dsh-ph-health-box.isWarning{border-color:var(--dsw-alias-state-warning-primary);background:var(--dsw-alias-state-warning-subtle);}',
-  '.dsh-ph-health-dot{width:8px;height:8px;border-radius:50%;flex:none;}',
-  '.dsh-ph-health-dot.isHealthy{background:var(--dsw-alias-state-success-primary);box-shadow:0 0 6px var(--dsw-alias-state-success-primary);}',
-  '.dsh-ph-health-dot.isWarning{background:var(--dsw-alias-state-warning-primary);box-shadow:0 0 6px var(--dsw-alias-state-warning-primary);}',
-  '.dsh-ph-health-info{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0;}',
-  '.dsh-ph-health-title{font-size:13.5px;font-weight:500;color:var(--dsw-alias-label-primary);}',
-  '.dsh-ph-health-desc{font-size:12px;color:var(--dsw-alias-label-tertiary);line-height:1.4;}',
-  '.dsh-ph-heal-btn{flex:none;}',
-  '.dsh-ph-adv-container{margin-top:8px;}',
-  '.dsh-ph-adv-toggle{display:flex;align-items:center;gap:6px;background:none;border:none;padding:6px 0;color:var(--dsw-alias-label-secondary);font-size:12.5px;cursor:pointer;}',
-  '.dsh-ph-adv-toggle:hover{color:var(--dsw-alias-label-primary);}',
-  '.dsh-ph-adv-pane{margin-top:8px;padding:12px;border-radius:var(--dsw-radius-md);background:var(--dsw-alias-bg-layer-2);border:.5px solid var(--dsw-alias-border-l3);display:flex;flex-direction:column;gap:12px;}',
-  '.dsh-ph-adv-actions{display:flex;gap:8px;align-items:center;}',
-  '.dsh-ph-import-box{display:flex;flex-direction:column;gap:8px;align-items:flex-end;}',
-  '.dsh-ph-textarea{box-sizing:border-box;width:100%;min-height:56px;padding:8px 10px;border-radius:var(--dsw-radius-md);border:.5px solid var(--dsw-alias-border-l3);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font-family:var(--dsw-font-mono, monospace);font-size:12px;line-height:1.4;resize:vertical;}',
   '.dsh-ph-foot{display:flex;align-items:center;justify-content:flex-end;gap:16px;margin-top:16px;}',
 ].join('')
 
@@ -87,8 +69,6 @@ interface TriggerPatch {
   track: (draft: string, caret: number, guard: { tier: string } | null | undefined, draftRev: number) => void
 }
 
-/** 已补装 track 补丁的控制器，防止同一会话重复包装。 */
-const patched = new WeakSet<object>()
 const ORIG_TRACK = Symbol.for('dsh.ph.origTrack')
 
 export function apply(ctx: ClientContext): void {
