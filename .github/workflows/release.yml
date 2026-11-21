@@ -6,7 +6,9 @@ on:
 
 permissions:
   contents: write
-  id-token: write
+  # 不加 id-token: write：pnpm 看到 OIDC 权限就会优先走 token exchange，
+  # 而本包没配 Trusted Publisher 时那一步返回 404，且失败后不会再回落到
+  # .npmrc 里的 NPM_TOKEN。用经典 token 发布就不需要 OIDC。
 
 jobs:
   test-and-publish:
@@ -34,8 +36,10 @@ jobs:
             echo "::error::缺少 NPM_TOKEN secret，无法发布" >&2
             exit 1
           fi
+          # 用 npm 而非 pnpm：npm 认 .npmrc 里的 _authToken；pnpm 在 OIDC 可用时
+          # 会优先走 token exchange，失败后不回落。
           echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > "$HOME/.npmrc"
-          pnpm publish --no-git-checks --registry=https://registry.npmjs.org/
+          npm publish --access public --registry=https://registry.npmjs.org/
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
       - run: gh release create ${{ github.ref_name }} --generate-notes
