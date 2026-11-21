@@ -238,13 +238,11 @@ function usePromptHistoryHotkeys(params: {
       const isFirst = host !== null ? isCaretOnFirstLine(host, live.draft) : true
       const isLast = host !== null ? isCaretOnLastLine(host, live.draft) : true
 
-      // 键盘提交感知：用户按下 Enter 或 Ctrl/Cmd+Enter 发送非空草稿时即刻无损入库（含斜杠命令原型重构）
+      // 键盘提交感知：Enter / Ctrl+Enter 发送非空草稿时即刻入库。
+      // 不再从 DOM 读 chip 拼命令前缀——draft 已含完整的命令原型。
       const isEnterSubmit = e.key === 'Enter' && !e.shiftKey && !e.altKey
       if (isEnterSubmit && !panelOpen && card.querySelector(OPEN_MENU) === null && live.draft.trim() !== '') {
-        const chip = card.querySelector<HTMLElement>('[data-composer-chip]')
-        const cmd = chip?.getAttribute('data-composer-chip')
-        const fullPrompt = cmd && cmd.trim() !== '' ? `/${cmd.trim()} ${live.draft.trim()}` : live.draft
-        engine.recordPrompt(fullPrompt)
+        engine.recordPrompt(live.draft)
       }
 
       const { handled, action } = engine.onKeyDown({
@@ -307,14 +305,13 @@ export function InputHistory(props: InputHistoryProps): null {
   const messagesRef = useRef(messages)
   messagesRef.current = messages
 
-  // 记录最近一次非空草稿，用于鼠标点击发送或快捷键提交时的零延迟沉淀（实时识别并融合斜杠命令原型）
+  // 记录最近一次非空草稿，用于鼠标点击发送或快捷键提交时的零延迟沉淀。
+  // 命令原型无需二次拼接：draft 是 clipboardText，官方已让 chip 展开为
+  // 其剪贴板投影（dsh-client-ui-conversation 的 projection.ts 注释明确
+  // 「chips expand to their clipboard projection」），斜杠命令已在其中。
   const lastNonEmptyDraftRef = useRef(draft)
   if (draft.trim() !== '') {
-    const card = typeof document !== 'undefined' ? document.querySelector<HTMLElement>(COMPOSER_CARD) : null
-    const chip = card?.querySelector<HTMLElement>('[data-composer-chip]')
-    const cmd = chip?.getAttribute('data-composer-chip')
-    const full = cmd && cmd.trim() !== '' && !draft.startsWith('/') ? `/${cmd.trim()} ${draft.trim()}` : draft
-    lastNonEmptyDraftRef.current = full
+    lastNonEmptyDraftRef.current = draft
   }
 
   // 浮层控制器深模块实例
@@ -343,11 +340,7 @@ export function InputHistory(props: InputHistoryProps): null {
     if (isNowSubmitting) {
       const text = lastNonEmptyDraftRef.current
       if (text.trim() !== '') {
-        const card = document.querySelector<HTMLElement>(COMPOSER_CARD)
-        const chip = card?.querySelector<HTMLElement>('[data-composer-chip]')
-        const cmd = chip?.getAttribute('data-composer-chip')
-        const fullPrompt = cmd && cmd.trim() !== '' ? `/${cmd.trim()} ${text.trim()}` : text
-        engine.recordPrompt(fullPrompt)
+        engine.recordPrompt(text)
       }
     }
     prevPhaseRef.current = phase
